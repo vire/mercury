@@ -1,0 +1,4185 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>---</title>
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" name="viewport" />
+<meta charset=utf-8></head>
+<body></body>
+<script language=javascript>
+(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);throw new Error("Cannot find module '"+o+"'")}var f=n[o]={exports:{}};t[o][0].call(f.exports,function(e){var n=t[o][1][e];return s(n?n:e)},f,f.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
+var mercury = require('../../index')
+var h = mercury.h
+var inlineMdEditor = require('./component/inlineMdEditor')
+var sideBySideMdEditor = require('./component/sideBySideMdEditor')
+
+app.render = appRender
+
+module.exports = app
+
+function app() {
+	var state = mercury.hash({
+		inlineEditor: inlineMdEditor({
+			placeholder: 'Enter some markdown...'
+		}),
+		sideBySideEditor: sideBySideMdEditor({
+			placeholder: 'Enter some markdown...',
+			value: [
+				'#Hello World',
+				'',
+				'* sample',
+				'* bullet',
+				'* points'
+			].join('\n')
+		})
+	})
+
+	return state
+}
+
+function appRender(state) {
+
+	return h('.page', {
+		style: { visibility: 'hidden' }
+	}, [
+		h('link', {
+			rel: 'stylesheet',
+			href: '/mercury/examples/markdown/style.css'
+		}),
+		h('.content', [
+			h('h2', 'Side-by-side Markdown Editor'),
+			h('p', 'Enter some markdown and click outside of the textarea to ' +
+					'see the parsed result. Click the output to edit again.'),
+			sideBySideMdEditor.render(state.sideBySideEditor),
+			h('h2', 'Inline Markdown Editor'),
+			h('p', 'Enter some markdown and click outside of the textarea to ' +
+					'see the parsed result. Click the output to edit again.'),
+			inlineMdEditor.render(state.inlineEditor)
+		])
+	])
+}
+
+},{"../../index":8,"./component/inlineMdEditor":3,"./component/sideBySideMdEditor":5}],2:[function(require,module,exports){
+var mercury = require('../../index')
+var app = require('./app')
+var state = app()
+
+mercury.app(document.body, state, app.render)
+
+},{"../../index":8,"./app":1}],3:[function(require,module,exports){
+var mercury = require('../../../index')
+var h = mercury.h
+var textarea = require('./textarea')
+var mdRender = require('./mdRender')
+var update = {
+	editorBlur: function (state, text) {
+		state.focusEditor.set(false)
+		state.isEditing.set(!text)
+	},
+	rendererClick: function (state) {
+		state.focusEditor.set(true)
+		state.isEditing.set(true)
+	}
+}
+
+inlineMdEditor.render = inlineMdEditorRender
+inlineMdEditor.update = update
+
+module.exports = inlineMdEditor
+
+function inlineMdEditor(options) {
+	options = options || {}
+
+	var focusEditor = mercury.value(false)
+	var editor = textarea({
+		value: options.value,
+		placeholder: options.placeholder,
+		name: options.name,
+		shouldFocus: focusEditor
+	})
+	var renderer = mdRender({ value: options.value })
+	var state = mercury.hash({
+		editor: editor,
+		renderer: renderer,
+		// if no initial value, show the editor
+		isEditing: mercury.value(!options.value),
+		focusEditor: focusEditor
+	})
+
+	editor.value(renderer.value.set)
+
+	editor.events.blur(update.editorBlur.bind(null, state))
+	renderer.events.click(update.rendererClick.bind(null, state))
+
+	return state
+}
+
+function inlineMdEditorRender(state) {
+	return h('.inlineMdEditor', [
+		state.isEditing ?
+			textarea.render(state.editor) :
+			mdRender.render(state.renderer)
+	])
+}
+
+
+},{"../../../index":8,"./mdRender":4,"./textarea":6}],4:[function(require,module,exports){
+var mercury = require('../../../index')
+var h = mercury.h
+var parseMarkdown = require('marked/lib/marked')
+
+mdRender.render = mdRenderRender
+mdRender.input = input
+
+module.exports = mdRender
+
+function mdRender(options) {
+	var events = input()
+	var state = mercury.hash({
+		events: events,
+		value: mercury.value(options.value || '')
+	})
+
+	return state
+}
+
+function input() {
+	return mercury.input([ 'click' ])
+}
+
+function mdRenderRender(state) {
+	var events = state.events
+
+	return h('.markdown', {
+		'data-click': events.click
+	}, [
+		// using a nested node due to a bug with innerHTML in vtree
+		h('', { innerHTML: parseMarkdown(state.value) })
+	])
+}
+
+},{"../../../index":8,"marked/lib/marked":28}],5:[function(require,module,exports){
+var mercury = require('../../../index')
+var h = mercury.h
+var textarea = require('./textarea')
+var mdRender = require('./mdRender')
+
+sideBySideMdEditor.render = sideBySideMdEditorRender
+
+module.exports = sideBySideMdEditor
+
+function sideBySideMdEditor(options) {
+	options = options || {}
+
+	var editor = textarea({
+		value: options.value,
+		placeholder: options.placeholder,
+		name: options.name
+	})
+	var renderer = mdRender({ value: options.value })
+	var state = mercury.hash({
+		editor: editor,
+		renderer: renderer
+	})
+
+	editor.value(renderer.value.set)
+
+	return state
+}
+
+function sideBySideMdEditorRender(state) {
+	return h('.sideBySideMdEditor', [
+		textarea.render(state.editor),
+		mdRender.render(state.renderer)
+	])
+}
+
+
+
+},{"../../../index":8,"./mdRender":4,"./textarea":6}],6:[function(require,module,exports){
+var mercury = require('../../../index')
+var h = mercury.h
+var doMutableFocus = require('../../todomvc/lib/do-mutable-focus')
+var update = {
+	// this needs to be input rather than change so that the pre expands as text
+	// is entered into the textarea
+	input: function (state, e) {
+		state.value.set(e.target.value)
+	},
+	change: function (state, e) {
+		// trim the content on a change event
+		state.value.set(e.target.value.trim())
+	}
+}
+
+textarea.render = textareaRender
+textarea.update = update
+textarea.input = input
+
+module.exports = textarea
+
+function textarea(options) {
+	options = options || {}
+
+	var events = input()
+	var state = mercury.hash({
+		events: events,
+		value: mercury.value(options.value || ''),
+		placeholder: mercury.value(options.placeholder || ''),
+		name: mercury.value(options.name || ''),
+		shouldFocus: options.shouldFocus
+	})
+
+	events.input(update.input.bind(null, state))
+	events.change(update.change.bind(null, state))
+
+	return state
+}
+
+function input() {
+	return mercury.input([ 'blur', 'change', 'input' ])
+}
+
+function textareaRender(state) {
+	var events = state.events
+
+	return h('.textarea', [
+		h('textarea.expanding', {
+			'data-blur': mercury.event(events.blur, state.value),
+			'data-change': events.change,
+			'data-input': events.input,
+			'data-focus': state.shouldFocus ? doMutableFocus() : null,
+			name: state.name,
+			placeholder: state.placeholder,
+			value: state.value
+		}),
+		h('pre', [
+			h('span', state.value),
+			h('br')
+		])
+	])
+}
+
+},{"../../../index":8,"../../todomvc/lib/do-mutable-focus":7}],7:[function(require,module,exports){
+var document = require("global/document")
+var nextTick = require('next-tick')
+
+module.exports = MutableFocusHook
+
+function MutableFocusHook() {
+    if (!(this instanceof MutableFocusHook)) {
+        return new MutableFocusHook()
+    }
+}
+
+MutableFocusHook.prototype.hook = function (node, property) {
+    nextTick(function () {
+        if (document.activeElement !== node) {
+            node.focus();
+        }
+    })
+}
+
+},{"global/document":26,"next-tick":29}],8:[function(require,module,exports){
+var SingleEvent = require("geval/single")
+var MultipleEvent = require("geval/multiple")
+
+/*
+    Pro tip: Don't require `mercury` itself.
+      require and depend on all these modules directly!
+*/
+var mercury = module.exports = {
+    // Entry
+    main: require("main-loop"),
+
+    // Input
+    Delegator: require("dom-delegator"),
+    input: input,
+    event: require("value-event/event"),
+    valueEvent: require("value-event/value"),
+    submitEvent: require("value-event/submit"),
+    changeEvent: require("value-event/change"),
+    keyEvent: require("value-event/key"),
+
+    // State
+    array: require("observ-array"),
+    hash: require("observ-hash"),
+    value: require("observ"),
+
+    // Render
+    diff: require("virtual-dom/diff"),
+    patch: require("virtual-dom/patch"),
+    partial: require("vdom-thunk"),
+    create: require("virtual-dom/create-element"),
+    h: require("virtual-hyperscript"),
+    svg: require("virtual-hyperscript/svg"),
+
+    // Utility
+    app: app
+}
+
+function input(names) {
+    if (!names) {
+        return SingleEvent()
+    }
+
+    return MultipleEvent(names)
+}
+
+function app(elem, observ, render) {
+    mercury.Delegator();
+    var loop = mercury.main(observ(), render)
+    observ(loop.update)
+    elem.appendChild(loop.target)
+}
+
+},{"dom-delegator":13,"geval/multiple":24,"geval/single":25,"main-loop":27,"observ":35,"observ-array":32,"observ-hash":34,"value-event/change":37,"value-event/event":38,"value-event/key":39,"value-event/submit":45,"value-event/value":46,"vdom-thunk":47,"virtual-dom/create-element":48,"virtual-dom/diff":49,"virtual-dom/patch":52,"virtual-hyperscript":71,"virtual-hyperscript/svg":78}],9:[function(require,module,exports){
+
+},{}],10:[function(require,module,exports){
+// shim for using process in browser
+
+var process = module.exports = {};
+
+process.nextTick = (function () {
+    var canSetImmediate = typeof window !== 'undefined'
+    && window.setImmediate;
+    var canPost = typeof window !== 'undefined'
+    && window.postMessage && window.addEventListener
+    ;
+
+    if (canSetImmediate) {
+        return function (f) { return window.setImmediate(f) };
+    }
+
+    if (canPost) {
+        var queue = [];
+        window.addEventListener('message', function (ev) {
+            var source = ev.source;
+            if ((source === window || source === null) && ev.data === 'process-tick') {
+                ev.stopPropagation();
+                if (queue.length > 0) {
+                    var fn = queue.shift();
+                    fn();
+                }
+            }
+        }, true);
+
+        return function nextTick(fn) {
+            queue.push(fn);
+            window.postMessage('process-tick', '*');
+        };
+    }
+
+    return function nextTick(fn) {
+        setTimeout(fn, 0);
+    };
+})();
+
+process.title = 'browser';
+process.browser = true;
+process.env = {};
+process.argv = [];
+
+function noop() {}
+
+process.on = noop;
+process.once = noop;
+process.off = noop;
+process.emit = noop;
+
+process.binding = function (name) {
+    throw new Error('process.binding is not supported');
+}
+
+// TODO(shtylman)
+process.cwd = function () { return '/' };
+process.chdir = function (dir) {
+    throw new Error('process.chdir is not supported');
+};
+
+},{}],11:[function(require,module,exports){
+var DataSet = require("data-set")
+
+module.exports = addEvent
+
+function addEvent(target, type, handler) {
+    var ds = DataSet(target)
+    var events = ds[type]
+
+    if (!events) {
+        ds[type] = handler
+    } else if (Array.isArray(events)) {
+        if (events.indexOf(handler) === -1) {
+            events.push(handler)
+        }
+    } else if (events !== handler) {
+        ds[type] = [events, handler]
+    }
+}
+
+},{"data-set":15}],12:[function(require,module,exports){
+var document = require("global/document")
+var DataSet = require("data-set")
+
+var addEvent = require("./add-event.js")
+var removeEvent = require("./remove-event.js")
+var ProxyEvent = require("./proxy-event.js")
+
+module.exports = DOMDelegator
+
+function DOMDelegator() {
+    this.target = document.documentElement
+    this.events = {}
+    this.rawEventListeners = {}
+    this.globalListeners = {}
+}
+
+DOMDelegator.prototype.addEventListener = addEvent
+DOMDelegator.prototype.removeEventListener = removeEvent
+
+DOMDelegator.prototype.addGlobalEventListener =
+    function addGlobalEventListener(eventName, fn) {
+        var listeners = this.globalListeners[eventName]
+        if (!listeners) {
+            listeners = this.globalListeners[eventName] = []
+        }
+
+        if (listeners.indexOf(fn) === -1) {
+            listeners.push(fn)
+        }
+    }
+
+DOMDelegator.prototype.removeGlobalEventListener =
+    function removeGlobalEventListener(eventName, fn) {
+        var listeners = this.globalListeners[eventName]
+        if (!listeners) {
+            return
+        }
+
+        var index = listeners.indexOf(fn)
+        if (index !== -1) {
+            listeners.splice(index, 1)
+        }
+    }
+
+DOMDelegator.prototype.listenTo = function listenTo(eventName) {
+    if (this.events[eventName]) {
+        return
+    }
+
+    this.events[eventName] = true
+    listen(this, eventName)
+}
+
+DOMDelegator.prototype.unlistenTo = function unlistenTo(eventName) {
+    if (!this.events[eventName]) {
+        return
+    }
+
+    this.events[eventName] = false
+    unlisten(this, eventName)
+}
+
+function listen(delegator, eventName) {
+    var listener = delegator.rawEventListeners[eventName]
+
+    if (!listener) {
+        listener = delegator.rawEventListeners[eventName] =
+            createHandler(eventName, delegator.globalListeners)
+    }
+
+    delegator.target.addEventListener(eventName, listener, true)
+}
+
+function unlisten(delegator, eventName) {
+    var listener = delegator.rawEventListeners[eventName]
+
+    if (!listener) {
+        throw new Error("dom-delegator#unlistenTo: cannot " +
+            "unlisten to " + eventName)
+    }
+
+    delegator.target.removeEventListener(eventName, listener, true)
+}
+
+function createHandler(eventName, globalListeners) {
+    return handler
+
+    function handler(ev) {
+        var globalHandlers = globalListeners[eventName] || []
+        var listener = getListener(ev.target, eventName)
+
+        var handlers = globalHandlers
+            .concat(listener ? listener.handlers : [])
+        if (handlers.length === 0) {
+            return
+        }
+
+        var arg = new ProxyEvent(ev, listener)
+
+        handlers.forEach(function (handler) {
+            typeof handler === "function" ?
+                handler(arg) : handler.handleEvent(arg)
+        })
+    }
+}
+
+function getListener(target, type) {
+    // terminate recursion if parent is `null`
+    if (target === null) {
+        return null
+    }
+
+    var ds = DataSet(target)
+    // fetch list of handler fns for this event
+    var handler = ds[type]
+    var allHandler = ds.event
+
+    if (!handler && !allHandler) {
+        return getListener(target.parentNode, type)
+    }
+
+    var handlers = [].concat(handler || [], allHandler || [])
+    return new Listener(target, handlers)
+}
+
+function Listener(target, handlers) {
+    this.currentTarget = target
+    this.handlers = handlers
+}
+
+},{"./add-event.js":11,"./proxy-event.js":21,"./remove-event.js":22,"data-set":15,"global/document":18}],13:[function(require,module,exports){
+var Individual = require("individual")
+
+var DOMDelegator = require("./dom-delegator.js")
+
+var delegatorCache = Individual("__DOM_DELEGATOR_CACHE@7", {})
+var commonEvents = [
+    "blur", "change", "click",  "contextmenu", "dblclick",
+    "error","focus", "focusin", "focusout", "input", "keydown",
+    "keypress", "keyup", "load", "mousedown", "mouseup",
+    "resize", "scroll", "select", "submit", "unload",
+]
+
+/*  Delegator is a thin wrapper around a singleton `DOMDelegator`
+        instance.
+
+    Only one DOMDelegator should exist because we do not want
+        duplicate event listeners bound to the DOM.
+
+    `Delegator` will also `listenTo()` all events unless 
+        every caller opts out of it
+*/
+module.exports = Delegator
+
+function Delegator(opts) {
+    opts = opts || {}
+    var delegator = delegatorCache.delegator
+
+    if (!delegator) {
+        delegator = delegatorCache.delegator =
+            new DOMDelegator()
+    }
+
+    if (opts.defaultEvents !== false) {
+        for (var i = 0; i < commonEvents.length; i++) {
+            delegator.listenTo(commonEvents[i])
+        }
+    }
+
+    return delegator
+}
+
+
+
+},{"./dom-delegator.js":12,"individual":19}],14:[function(require,module,exports){
+module.exports = createHash
+
+function createHash(elem) {
+    var attributes = elem.attributes
+    var hash = {}
+
+    if (attributes === null || attributes === undefined) {
+        return hash
+    }
+
+    for (var i = 0; i < attributes.length; i++) {
+        var attr = attributes[i]
+
+        if (attr.name.substr(0,5) !== "data-") {
+            continue
+        }
+
+        hash[attr.name.substr(5)] = attr.value
+    }
+
+    return hash
+}
+
+},{}],15:[function(require,module,exports){
+var createStore = require("weakmap-shim/create-store")
+var Individual = require("individual")
+
+var createHash = require("./create-hash.js")
+
+var hashStore = Individual("__DATA_SET_WEAKMAP@3", createStore())
+
+module.exports = DataSet
+
+function DataSet(elem) {
+    var store = hashStore(elem)
+
+    if (!store.hash) {
+        store.hash = createHash(elem)
+    }
+
+    return store.hash
+}
+
+},{"./create-hash.js":14,"individual":19,"weakmap-shim/create-store":16}],16:[function(require,module,exports){
+var hiddenStore = require('./hidden-store.js');
+
+module.exports = createStore;
+
+function createStore() {
+    var key = {};
+
+    return function (obj) {
+        if (typeof obj !== 'object' || obj === null) {
+            throw new Error('Weakmap-shim: Key must be object')
+        }
+
+        var store = obj.valueOf(key);
+        return store && store.identity === key ?
+            store : hiddenStore(obj, key);
+    };
+}
+
+},{"./hidden-store.js":17}],17:[function(require,module,exports){
+module.exports = hiddenStore;
+
+function hiddenStore(obj, key) {
+    var store = { identity: key };
+    var valueOf = obj.valueOf;
+
+    Object.defineProperty(obj, "valueOf", {
+        value: function (value) {
+            return value !== key ?
+                valueOf.apply(this, arguments) : store;
+        },
+        writable: true
+    });
+
+    return store;
+}
+
+},{}],18:[function(require,module,exports){
+(function (global){
+var topLevel = typeof global !== 'undefined' ? global :
+    typeof window !== 'undefined' ? window : {}
+var minDoc = require('min-document');
+
+if (typeof document !== 'undefined') {
+    module.exports = document;
+} else {
+    var doccy = topLevel['__GLOBAL_DOCUMENT_CACHE@4'];
+
+    if (!doccy) {
+        doccy = topLevel['__GLOBAL_DOCUMENT_CACHE@4'] = minDoc;
+    }
+
+    module.exports = doccy;
+}
+
+}).call(this,typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
+},{"min-document":9}],19:[function(require,module,exports){
+(function (global){
+var root = typeof window !== 'undefined' ?
+    window : typeof global !== 'undefined' ?
+    global : {};
+
+module.exports = Individual
+
+function Individual(key, value) {
+    if (root[key]) {
+        return root[key]
+    }
+
+    Object.defineProperty(root, key, {
+        value: value
+        , configurable: true
+    })
+
+    return value
+}
+
+}).call(this,typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
+},{}],20:[function(require,module,exports){
+if (typeof Object.create === 'function') {
+  // implementation from standard node.js 'util' module
+  module.exports = function inherits(ctor, superCtor) {
+    ctor.super_ = superCtor
+    ctor.prototype = Object.create(superCtor.prototype, {
+      constructor: {
+        value: ctor,
+        enumerable: false,
+        writable: true,
+        configurable: true
+      }
+    });
+  };
+} else {
+  // old school shim for old browsers
+  module.exports = function inherits(ctor, superCtor) {
+    ctor.super_ = superCtor
+    var TempCtor = function () {}
+    TempCtor.prototype = superCtor.prototype
+    ctor.prototype = new TempCtor()
+    ctor.prototype.constructor = ctor
+  }
+}
+
+},{}],21:[function(require,module,exports){
+var inherits = require("inherits")
+
+var ALL_PROPS = [
+    "altKey", "bubbles", "cancelable", "ctrlKey",
+    "eventPhase", "metaKey", "relatedTarget", "shiftKey",
+    "target", "timeStamp", "type", "view", "which"
+]
+var KEY_PROPS = ["char", "charCode", "key", "keyCode"]
+var MOUSE_PROPS = [
+    "button", "buttons", "clientX", "clientY", "layerX",
+    "layerY", "offsetX", "offsetY", "pageX", "pageY",
+    "screenX", "screenY", "toElement"
+]
+
+var rkeyEvent = /^key|input/
+var rmouseEvent = /^(?:mouse|pointer|contextmenu)|click/
+
+module.exports = ProxyEvent
+
+function ProxyEvent(ev, listener) {
+    if (!(this instanceof ProxyEvent)) {
+        return new ProxyEvent(ev, listener)
+    }
+
+    if (rkeyEvent.test(ev.type)) {
+        return new KeyEvent(ev, listener)
+    } else if (rmouseEvent.test(ev.type)) {
+        return new MouseEvent(ev, listener)
+    }
+
+    for (var i = 0; i < ALL_PROPS.length; i++) {
+        var propKey = ALL_PROPS[i]
+        this[propKey] = ev[propKey]
+    }
+
+    this._rawEvent = ev
+    this.currentTarget = listener ? listener.currentTarget : null
+}
+
+ProxyEvent.prototype.preventDefault = function () {
+    this._rawEvent.preventDefault()
+}
+
+function MouseEvent(ev, listener) {
+    for (var i = 0; i < ALL_PROPS.length; i++) {
+        var propKey = ALL_PROPS[i]
+        this[propKey] = ev[propKey]
+    }
+
+    for (var j = 0; j < MOUSE_PROPS.length; j++) {
+        var mousePropKey = MOUSE_PROPS[j]
+        this[mousePropKey] = ev[mousePropKey]
+    }
+
+    this._rawEvent = ev
+    this.currentTarget = listener ? listener.currentTarget : null
+}
+
+inherits(MouseEvent, ProxyEvent)
+
+function KeyEvent(ev, listener) {
+    for (var i = 0; i < ALL_PROPS.length; i++) {
+        var propKey = ALL_PROPS[i]
+        this[propKey] = ev[propKey]
+    }
+
+    for (var j = 0; j < KEY_PROPS.length; j++) {
+        var keyPropKey = KEY_PROPS[j]
+        this[keyPropKey] = ev[keyPropKey]
+    }
+
+    this._rawEvent = ev
+    this.currentTarget = listener ? listener.currentTarget : null
+}
+
+inherits(KeyEvent, ProxyEvent)
+
+},{"inherits":20}],22:[function(require,module,exports){
+var DataSet = require("data-set")
+
+module.exports = removeEvent
+
+function removeEvent(target, type, handler) {
+    var ds = DataSet(target)
+    var events = ds[type]
+
+    if (!events) {
+        return
+    } else if (Array.isArray(events)) {
+        var index = events.indexOf(handler)
+        if (index !== -1) {
+            events.splice(index, 1)
+        }
+    } else if (events === handler) {
+        ds[type] = null
+    }
+}
+
+},{"data-set":15}],23:[function(require,module,exports){
+module.exports = Event
+
+function Event() {
+    var listeners = []
+
+    return { broadcast: broadcast, listen: event }
+
+    function broadcast(value) {
+        for (var i = 0; i < listeners.length; i++) {
+            listeners[i](value)
+        }
+    }
+
+    function event(listener) {
+        listeners.push(listener)
+
+        return removeListener
+
+        function removeListener() {
+            var index = listeners.indexOf(listener)
+            if (index !== -1) {
+                listeners.splice(index, 1)
+            }
+        }
+    }
+}
+
+},{}],24:[function(require,module,exports){
+var event = require("./single.js")
+
+module.exports = multiple
+
+function multiple(names) {
+    return names.reduce(function (acc, name) {
+        acc[name] = event()
+        return acc
+    }, {})
+}
+
+},{"./single.js":25}],25:[function(require,module,exports){
+var Event = require('./event.js')
+
+module.exports = Single
+
+function Single() {
+    var tuple = Event()
+
+    return function event(value) {
+        if (typeof value === "function") {
+            return tuple.listen(value)
+        } else {
+            return tuple.broadcast(value)
+        }
+    }
+}
+
+},{"./event.js":23}],26:[function(require,module,exports){
+if (typeof document !== "undefined") {
+    module.exports = document;
+} else {
+    module.exports = require("min-document");
+}
+
+},{"min-document":9}],27:[function(require,module,exports){
+var raf = require("raf/polyfill")
+var vdomCreate = require("virtual-dom/create-element")
+var vdomDiff = require("virtual-dom/diff")
+var vdomPatch = require("virtual-dom/patch")
+
+module.exports = main
+
+function main(initialState, view, opts) {
+    opts = opts || {}
+
+    var currentState = initialState
+    var create = opts.create || vdomCreate
+    var diff = opts.diff || vdomDiff
+    var patch = opts.patch || vdomPatch
+    var looping = true
+
+    var tree = view(currentState)
+    var target = create(tree, opts)
+
+    currentState = null
+
+    raf(redraw)
+
+    return {
+        target: target,
+        update: update
+    }
+
+    function update(state) {
+        if (currentState === null && !looping) {
+            looping = true
+            raf(redraw)
+        }
+
+        currentState = state
+    }
+
+    function redraw() {
+        if (currentState === null) {
+            looping = false
+            return
+        }
+
+        var newTree = view(currentState)
+
+        if (opts.createOnly) {
+            create(newTree, opts)
+        } else {
+            var patches = diff(tree, newTree, opts)
+            patch(target, patches, opts)
+        }
+
+        tree = newTree
+        currentState = null
+
+        raf(redraw)
+    }
+}
+
+},{"raf/polyfill":36,"virtual-dom/create-element":48,"virtual-dom/diff":49,"virtual-dom/patch":52}],28:[function(require,module,exports){
+(function (global){
+/**
+ * marked - a markdown parser
+ * Copyright (c) 2011-2014, Christopher Jeffrey. (MIT Licensed)
+ * https://github.com/chjj/marked
+ */
+
+;(function() {
+
+/**
+ * Block-Level Grammar
+ */
+
+var block = {
+  newline: /^\n+/,
+  code: /^( {4}[^\n]+\n*)+/,
+  fences: noop,
+  hr: /^( *[-*_]){3,} *(?:\n+|$)/,
+  heading: /^ *(#{1,6}) *([^\n]+?) *#* *(?:\n+|$)/,
+  nptable: noop,
+  lheading: /^([^\n]+)\n *(=|-){2,} *(?:\n+|$)/,
+  blockquote: /^( *>[^\n]+(\n(?!def)[^\n]+)*\n*)+/,
+  list: /^( *)(bull) [\s\S]+?(?:hr|def|\n{2,}(?! )(?!\1bull )\n*|\s*$)/,
+  html: /^ *(?:comment|closed|closing) *(?:\n{2,}|\s*$)/,
+  def: /^ *\[([^\]]+)\]: *<?([^\s>]+)>?(?: +["(]([^\n]+)[")])? *(?:\n+|$)/,
+  table: noop,
+  paragraph: /^((?:[^\n]+\n?(?!hr|heading|lheading|blockquote|tag|def))+)\n*/,
+  text: /^[^\n]+/
+};
+
+block.bullet = /(?:[*+-]|\d+\.)/;
+block.item = /^( *)(bull) [^\n]*(?:\n(?!\1bull )[^\n]*)*/;
+block.item = replace(block.item, 'gm')
+  (/bull/g, block.bullet)
+  ();
+
+block.list = replace(block.list)
+  (/bull/g, block.bullet)
+  ('hr', '\\n+(?=\\1?(?:[-*_] *){3,}(?:\\n+|$))')
+  ('def', '\\n+(?=' + block.def.source + ')')
+  ();
+
+block.blockquote = replace(block.blockquote)
+  ('def', block.def)
+  ();
+
+block._tag = '(?!(?:'
+  + 'a|em|strong|small|s|cite|q|dfn|abbr|data|time|code'
+  + '|var|samp|kbd|sub|sup|i|b|u|mark|ruby|rt|rp|bdi|bdo'
+  + '|span|br|wbr|ins|del|img)\\b)\\w+(?!:/|[^\\w\\s@]*@)\\b';
+
+block.html = replace(block.html)
+  ('comment', /<!--[\s\S]*?-->/)
+  ('closed', /<(tag)[\s\S]+?<\/\1>/)
+  ('closing', /<tag(?:"[^"]*"|'[^']*'|[^'">])*?>/)
+  (/tag/g, block._tag)
+  ();
+
+block.paragraph = replace(block.paragraph)
+  ('hr', block.hr)
+  ('heading', block.heading)
+  ('lheading', block.lheading)
+  ('blockquote', block.blockquote)
+  ('tag', '<' + block._tag)
+  ('def', block.def)
+  ();
+
+/**
+ * Normal Block Grammar
+ */
+
+block.normal = merge({}, block);
+
+/**
+ * GFM Block Grammar
+ */
+
+block.gfm = merge({}, block.normal, {
+  fences: /^ *(`{3,}|~{3,}) *(\S+)? *\n([\s\S]+?)\s*\1 *(?:\n+|$)/,
+  paragraph: /^/
+});
+
+block.gfm.paragraph = replace(block.paragraph)
+  ('(?!', '(?!'
+    + block.gfm.fences.source.replace('\\1', '\\2') + '|'
+    + block.list.source.replace('\\1', '\\3') + '|')
+  ();
+
+/**
+ * GFM + Tables Block Grammar
+ */
+
+block.tables = merge({}, block.gfm, {
+  nptable: /^ *(\S.*\|.*)\n *([-:]+ *\|[-| :]*)\n((?:.*\|.*(?:\n|$))*)\n*/,
+  table: /^ *\|(.+)\n *\|( *[-:]+[-| :]*)\n((?: *\|.*(?:\n|$))*)\n*/
+});
+
+/**
+ * Block Lexer
+ */
+
+function Lexer(options) {
+  this.tokens = [];
+  this.tokens.links = {};
+  this.options = options || marked.defaults;
+  this.rules = block.normal;
+
+  if (this.options.gfm) {
+    if (this.options.tables) {
+      this.rules = block.tables;
+    } else {
+      this.rules = block.gfm;
+    }
+  }
+}
+
+/**
+ * Expose Block Rules
+ */
+
+Lexer.rules = block;
+
+/**
+ * Static Lex Method
+ */
+
+Lexer.lex = function(src, options) {
+  var lexer = new Lexer(options);
+  return lexer.lex(src);
+};
+
+/**
+ * Preprocessing
+ */
+
+Lexer.prototype.lex = function(src) {
+  src = src
+    .replace(/\r\n|\r/g, '\n')
+    .replace(/\t/g, '    ')
+    .replace(/\u00a0/g, ' ')
+    .replace(/\u2424/g, '\n');
+
+  return this.token(src, true);
+};
+
+/**
+ * Lexing
+ */
+
+Lexer.prototype.token = function(src, top, bq) {
+  var src = src.replace(/^ +$/gm, '')
+    , next
+    , loose
+    , cap
+    , bull
+    , b
+    , item
+    , space
+    , i
+    , l;
+
+  while (src) {
+    // newline
+    if (cap = this.rules.newline.exec(src)) {
+      src = src.substring(cap[0].length);
+      if (cap[0].length > 1) {
+        this.tokens.push({
+          type: 'space'
+        });
+      }
+    }
+
+    // code
+    if (cap = this.rules.code.exec(src)) {
+      src = src.substring(cap[0].length);
+      cap = cap[0].replace(/^ {4}/gm, '');
+      this.tokens.push({
+        type: 'code',
+        text: !this.options.pedantic
+          ? cap.replace(/\n+$/, '')
+          : cap
+      });
+      continue;
+    }
+
+    // fences (gfm)
+    if (cap = this.rules.fences.exec(src)) {
+      src = src.substring(cap[0].length);
+      this.tokens.push({
+        type: 'code',
+        lang: cap[2],
+        text: cap[3]
+      });
+      continue;
+    }
+
+    // heading
+    if (cap = this.rules.heading.exec(src)) {
+      src = src.substring(cap[0].length);
+      this.tokens.push({
+        type: 'heading',
+        depth: cap[1].length,
+        text: cap[2]
+      });
+      continue;
+    }
+
+    // table no leading pipe (gfm)
+    if (top && (cap = this.rules.nptable.exec(src))) {
+      src = src.substring(cap[0].length);
+
+      item = {
+        type: 'table',
+        header: cap[1].replace(/^ *| *\| *$/g, '').split(/ *\| */),
+        align: cap[2].replace(/^ *|\| *$/g, '').split(/ *\| */),
+        cells: cap[3].replace(/\n$/, '').split('\n')
+      };
+
+      for (i = 0; i < item.align.length; i++) {
+        if (/^ *-+: *$/.test(item.align[i])) {
+          item.align[i] = 'right';
+        } else if (/^ *:-+: *$/.test(item.align[i])) {
+          item.align[i] = 'center';
+        } else if (/^ *:-+ *$/.test(item.align[i])) {
+          item.align[i] = 'left';
+        } else {
+          item.align[i] = null;
+        }
+      }
+
+      for (i = 0; i < item.cells.length; i++) {
+        item.cells[i] = item.cells[i].split(/ *\| */);
+      }
+
+      this.tokens.push(item);
+
+      continue;
+    }
+
+    // lheading
+    if (cap = this.rules.lheading.exec(src)) {
+      src = src.substring(cap[0].length);
+      this.tokens.push({
+        type: 'heading',
+        depth: cap[2] === '=' ? 1 : 2,
+        text: cap[1]
+      });
+      continue;
+    }
+
+    // hr
+    if (cap = this.rules.hr.exec(src)) {
+      src = src.substring(cap[0].length);
+      this.tokens.push({
+        type: 'hr'
+      });
+      continue;
+    }
+
+    // blockquote
+    if (cap = this.rules.blockquote.exec(src)) {
+      src = src.substring(cap[0].length);
+
+      this.tokens.push({
+        type: 'blockquote_start'
+      });
+
+      cap = cap[0].replace(/^ *> ?/gm, '');
+
+      // Pass `top` to keep the current
+      // "toplevel" state. This is exactly
+      // how markdown.pl works.
+      this.token(cap, top, true);
+
+      this.tokens.push({
+        type: 'blockquote_end'
+      });
+
+      continue;
+    }
+
+    // list
+    if (cap = this.rules.list.exec(src)) {
+      src = src.substring(cap[0].length);
+      bull = cap[2];
+
+      this.tokens.push({
+        type: 'list_start',
+        ordered: bull.length > 1
+      });
+
+      // Get each top-level item.
+      cap = cap[0].match(this.rules.item);
+
+      next = false;
+      l = cap.length;
+      i = 0;
+
+      for (; i < l; i++) {
+        item = cap[i];
+
+        // Remove the list item's bullet
+        // so it is seen as the next token.
+        space = item.length;
+        item = item.replace(/^ *([*+-]|\d+\.) +/, '');
+
+        // Outdent whatever the
+        // list item contains. Hacky.
+        if (~item.indexOf('\n ')) {
+          space -= item.length;
+          item = !this.options.pedantic
+            ? item.replace(new RegExp('^ {1,' + space + '}', 'gm'), '')
+            : item.replace(/^ {1,4}/gm, '');
+        }
+
+        // Determine whether the next list item belongs here.
+        // Backpedal if it does not belong in this list.
+        if (this.options.smartLists && i !== l - 1) {
+          b = block.bullet.exec(cap[i + 1])[0];
+          if (bull !== b && !(bull.length > 1 && b.length > 1)) {
+            src = cap.slice(i + 1).join('\n') + src;
+            i = l - 1;
+          }
+        }
+
+        // Determine whether item is loose or not.
+        // Use: /(^|\n)(?! )[^\n]+\n\n(?!\s*$)/
+        // for discount behavior.
+        loose = next || /\n\n(?!\s*$)/.test(item);
+        if (i !== l - 1) {
+          next = item.charAt(item.length - 1) === '\n';
+          if (!loose) loose = next;
+        }
+
+        this.tokens.push({
+          type: loose
+            ? 'loose_item_start'
+            : 'list_item_start'
+        });
+
+        // Recurse.
+        this.token(item, false, bq);
+
+        this.tokens.push({
+          type: 'list_item_end'
+        });
+      }
+
+      this.tokens.push({
+        type: 'list_end'
+      });
+
+      continue;
+    }
+
+    // html
+    if (cap = this.rules.html.exec(src)) {
+      src = src.substring(cap[0].length);
+      this.tokens.push({
+        type: this.options.sanitize
+          ? 'paragraph'
+          : 'html',
+        pre: cap[1] === 'pre' || cap[1] === 'script' || cap[1] === 'style',
+        text: cap[0]
+      });
+      continue;
+    }
+
+    // def
+    if ((!bq && top) && (cap = this.rules.def.exec(src))) {
+      src = src.substring(cap[0].length);
+      this.tokens.links[cap[1].toLowerCase()] = {
+        href: cap[2],
+        title: cap[3]
+      };
+      continue;
+    }
+
+    // table (gfm)
+    if (top && (cap = this.rules.table.exec(src))) {
+      src = src.substring(cap[0].length);
+
+      item = {
+        type: 'table',
+        header: cap[1].replace(/^ *| *\| *$/g, '').split(/ *\| */),
+        align: cap[2].replace(/^ *|\| *$/g, '').split(/ *\| */),
+        cells: cap[3].replace(/(?: *\| *)?\n$/, '').split('\n')
+      };
+
+      for (i = 0; i < item.align.length; i++) {
+        if (/^ *-+: *$/.test(item.align[i])) {
+          item.align[i] = 'right';
+        } else if (/^ *:-+: *$/.test(item.align[i])) {
+          item.align[i] = 'center';
+        } else if (/^ *:-+ *$/.test(item.align[i])) {
+          item.align[i] = 'left';
+        } else {
+          item.align[i] = null;
+        }
+      }
+
+      for (i = 0; i < item.cells.length; i++) {
+        item.cells[i] = item.cells[i]
+          .replace(/^ *\| *| *\| *$/g, '')
+          .split(/ *\| */);
+      }
+
+      this.tokens.push(item);
+
+      continue;
+    }
+
+    // top-level paragraph
+    if (top && (cap = this.rules.paragraph.exec(src))) {
+      src = src.substring(cap[0].length);
+      this.tokens.push({
+        type: 'paragraph',
+        text: cap[1].charAt(cap[1].length - 1) === '\n'
+          ? cap[1].slice(0, -1)
+          : cap[1]
+      });
+      continue;
+    }
+
+    // text
+    if (cap = this.rules.text.exec(src)) {
+      // Top-level should never reach here.
+      src = src.substring(cap[0].length);
+      this.tokens.push({
+        type: 'text',
+        text: cap[0]
+      });
+      continue;
+    }
+
+    if (src) {
+      throw new
+        Error('Infinite loop on byte: ' + src.charCodeAt(0));
+    }
+  }
+
+  return this.tokens;
+};
+
+/**
+ * Inline-Level Grammar
+ */
+
+var inline = {
+  escape: /^\\([\\`*{}\[\]()#+\-.!_>])/,
+  autolink: /^<([^ >]+(@|:\/)[^ >]+)>/,
+  url: noop,
+  tag: /^<!--[\s\S]*?-->|^<\/?\w+(?:"[^"]*"|'[^']*'|[^'">])*?>/,
+  link: /^!?\[(inside)\]\(href\)/,
+  reflink: /^!?\[(inside)\]\s*\[([^\]]*)\]/,
+  nolink: /^!?\[((?:\[[^\]]*\]|[^\[\]])*)\]/,
+  strong: /^__([\s\S]+?)__(?!_)|^\*\*([\s\S]+?)\*\*(?!\*)/,
+  em: /^\b_((?:__|[\s\S])+?)_\b|^\*((?:\*\*|[\s\S])+?)\*(?!\*)/,
+  code: /^(`+)\s*([\s\S]*?[^`])\s*\1(?!`)/,
+  br: /^ {2,}\n(?!\s*$)/,
+  del: noop,
+  text: /^[\s\S]+?(?=[\\<!\[_*`]| {2,}\n|$)/
+};
+
+inline._inside = /(?:\[[^\]]*\]|[^\[\]]|\](?=[^\[]*\]))*/;
+inline._href = /\s*<?([\s\S]*?)>?(?:\s+['"]([\s\S]*?)['"])?\s*/;
+
+inline.link = replace(inline.link)
+  ('inside', inline._inside)
+  ('href', inline._href)
+  ();
+
+inline.reflink = replace(inline.reflink)
+  ('inside', inline._inside)
+  ();
+
+/**
+ * Normal Inline Grammar
+ */
+
+inline.normal = merge({}, inline);
+
+/**
+ * Pedantic Inline Grammar
+ */
+
+inline.pedantic = merge({}, inline.normal, {
+  strong: /^__(?=\S)([\s\S]*?\S)__(?!_)|^\*\*(?=\S)([\s\S]*?\S)\*\*(?!\*)/,
+  em: /^_(?=\S)([\s\S]*?\S)_(?!_)|^\*(?=\S)([\s\S]*?\S)\*(?!\*)/
+});
+
+/**
+ * GFM Inline Grammar
+ */
+
+inline.gfm = merge({}, inline.normal, {
+  escape: replace(inline.escape)('])', '~|])')(),
+  url: /^(https?:\/\/[^\s<]+[^<.,:;"')\]\s])/,
+  del: /^~~(?=\S)([\s\S]*?\S)~~/,
+  text: replace(inline.text)
+    (']|', '~]|')
+    ('|', '|https?://|')
+    ()
+});
+
+/**
+ * GFM + Line Breaks Inline Grammar
+ */
+
+inline.breaks = merge({}, inline.gfm, {
+  br: replace(inline.br)('{2,}', '*')(),
+  text: replace(inline.gfm.text)('{2,}', '*')()
+});
+
+/**
+ * Inline Lexer & Compiler
+ */
+
+function InlineLexer(links, options) {
+  this.options = options || marked.defaults;
+  this.links = links;
+  this.rules = inline.normal;
+  this.renderer = this.options.renderer || new Renderer;
+  this.renderer.options = this.options;
+
+  if (!this.links) {
+    throw new
+      Error('Tokens array requires a `links` property.');
+  }
+
+  if (this.options.gfm) {
+    if (this.options.breaks) {
+      this.rules = inline.breaks;
+    } else {
+      this.rules = inline.gfm;
+    }
+  } else if (this.options.pedantic) {
+    this.rules = inline.pedantic;
+  }
+}
+
+/**
+ * Expose Inline Rules
+ */
+
+InlineLexer.rules = inline;
+
+/**
+ * Static Lexing/Compiling Method
+ */
+
+InlineLexer.output = function(src, links, options) {
+  var inline = new InlineLexer(links, options);
+  return inline.output(src);
+};
+
+/**
+ * Lexing/Compiling
+ */
+
+InlineLexer.prototype.output = function(src) {
+  var out = ''
+    , link
+    , text
+    , href
+    , cap;
+
+  while (src) {
+    // escape
+    if (cap = this.rules.escape.exec(src)) {
+      src = src.substring(cap[0].length);
+      out += cap[1];
+      continue;
+    }
+
+    // autolink
+    if (cap = this.rules.autolink.exec(src)) {
+      src = src.substring(cap[0].length);
+      if (cap[2] === '@') {
+        text = cap[1].charAt(6) === ':'
+          ? this.mangle(cap[1].substring(7))
+          : this.mangle(cap[1]);
+        href = this.mangle('mailto:') + text;
+      } else {
+        text = escape(cap[1]);
+        href = text;
+      }
+      out += this.renderer.link(href, null, text);
+      continue;
+    }
+
+    // url (gfm)
+    if (!this.inLink && (cap = this.rules.url.exec(src))) {
+      src = src.substring(cap[0].length);
+      text = escape(cap[1]);
+      href = text;
+      out += this.renderer.link(href, null, text);
+      continue;
+    }
+
+    // tag
+    if (cap = this.rules.tag.exec(src)) {
+      if (!this.inLink && /^<a /i.test(cap[0])) {
+        this.inLink = true;
+      } else if (this.inLink && /^<\/a>/i.test(cap[0])) {
+        this.inLink = false;
+      }
+      src = src.substring(cap[0].length);
+      out += this.options.sanitize
+        ? escape(cap[0])
+        : cap[0];
+      continue;
+    }
+
+    // link
+    if (cap = this.rules.link.exec(src)) {
+      src = src.substring(cap[0].length);
+      this.inLink = true;
+      out += this.outputLink(cap, {
+        href: cap[2],
+        title: cap[3]
+      });
+      this.inLink = false;
+      continue;
+    }
+
+    // reflink, nolink
+    if ((cap = this.rules.reflink.exec(src))
+        || (cap = this.rules.nolink.exec(src))) {
+      src = src.substring(cap[0].length);
+      link = (cap[2] || cap[1]).replace(/\s+/g, ' ');
+      link = this.links[link.toLowerCase()];
+      if (!link || !link.href) {
+        out += cap[0].charAt(0);
+        src = cap[0].substring(1) + src;
+        continue;
+      }
+      this.inLink = true;
+      out += this.outputLink(cap, link);
+      this.inLink = false;
+      continue;
+    }
+
+    // strong
+    if (cap = this.rules.strong.exec(src)) {
+      src = src.substring(cap[0].length);
+      out += this.renderer.strong(this.output(cap[2] || cap[1]));
+      continue;
+    }
+
+    // em
+    if (cap = this.rules.em.exec(src)) {
+      src = src.substring(cap[0].length);
+      out += this.renderer.em(this.output(cap[2] || cap[1]));
+      continue;
+    }
+
+    // code
+    if (cap = this.rules.code.exec(src)) {
+      src = src.substring(cap[0].length);
+      out += this.renderer.codespan(escape(cap[2], true));
+      continue;
+    }
+
+    // br
+    if (cap = this.rules.br.exec(src)) {
+      src = src.substring(cap[0].length);
+      out += this.renderer.br();
+      continue;
+    }
+
+    // del (gfm)
+    if (cap = this.rules.del.exec(src)) {
+      src = src.substring(cap[0].length);
+      out += this.renderer.del(this.output(cap[1]));
+      continue;
+    }
+
+    // text
+    if (cap = this.rules.text.exec(src)) {
+      src = src.substring(cap[0].length);
+      out += escape(this.smartypants(cap[0]));
+      continue;
+    }
+
+    if (src) {
+      throw new
+        Error('Infinite loop on byte: ' + src.charCodeAt(0));
+    }
+  }
+
+  return out;
+};
+
+/**
+ * Compile Link
+ */
+
+InlineLexer.prototype.outputLink = function(cap, link) {
+  var href = escape(link.href)
+    , title = link.title ? escape(link.title) : null;
+
+  return cap[0].charAt(0) !== '!'
+    ? this.renderer.link(href, title, this.output(cap[1]))
+    : this.renderer.image(href, title, escape(cap[1]));
+};
+
+/**
+ * Smartypants Transformations
+ */
+
+InlineLexer.prototype.smartypants = function(text) {
+  if (!this.options.smartypants) return text;
+  return text
+    // em-dashes
+    .replace(/--/g, '\u2014')
+    // opening singles
+    .replace(/(^|[-\u2014/(\[{"\s])'/g, '$1\u2018')
+    // closing singles & apostrophes
+    .replace(/'/g, '\u2019')
+    // opening doubles
+    .replace(/(^|[-\u2014/(\[{\u2018\s])"/g, '$1\u201c')
+    // closing doubles
+    .replace(/"/g, '\u201d')
+    // ellipses
+    .replace(/\.{3}/g, '\u2026');
+};
+
+/**
+ * Mangle Links
+ */
+
+InlineLexer.prototype.mangle = function(text) {
+  var out = ''
+    , l = text.length
+    , i = 0
+    , ch;
+
+  for (; i < l; i++) {
+    ch = text.charCodeAt(i);
+    if (Math.random() > 0.5) {
+      ch = 'x' + ch.toString(16);
+    }
+    out += '&#' + ch + ';';
+  }
+
+  return out;
+};
+
+/**
+ * Renderer
+ */
+
+function Renderer(options) {
+  this.options = options || {};
+}
+
+Renderer.prototype.code = function(code, lang, escaped) {
+  if (this.options.highlight) {
+    var out = this.options.highlight(code, lang);
+    if (out != null && out !== code) {
+      escaped = true;
+      code = out;
+    }
+  }
+
+  if (!lang) {
+    return '<pre><code>'
+      + (escaped ? code : escape(code, true))
+      + '\n</code></pre>';
+  }
+
+  return '<pre><code class="'
+    + this.options.langPrefix
+    + escape(lang, true)
+    + '">'
+    + (escaped ? code : escape(code, true))
+    + '\n</code></pre>\n';
+};
+
+Renderer.prototype.blockquote = function(quote) {
+  return '<blockquote>\n' + quote + '</blockquote>\n';
+};
+
+Renderer.prototype.html = function(html) {
+  return html;
+};
+
+Renderer.prototype.heading = function(text, level, raw) {
+  return '<h'
+    + level
+    + ' id="'
+    + this.options.headerPrefix
+    + raw.toLowerCase().replace(/[^\w]+/g, '-')
+    + '">'
+    + text
+    + '</h'
+    + level
+    + '>\n';
+};
+
+Renderer.prototype.hr = function() {
+  return this.options.xhtml ? '<hr/>\n' : '<hr>\n';
+};
+
+Renderer.prototype.list = function(body, ordered) {
+  var type = ordered ? 'ol' : 'ul';
+  return '<' + type + '>\n' + body + '</' + type + '>\n';
+};
+
+Renderer.prototype.listitem = function(text) {
+  return '<li>' + text + '</li>\n';
+};
+
+Renderer.prototype.paragraph = function(text) {
+  return '<p>' + text + '</p>\n';
+};
+
+Renderer.prototype.table = function(header, body) {
+  return '<table>\n'
+    + '<thead>\n'
+    + header
+    + '</thead>\n'
+    + '<tbody>\n'
+    + body
+    + '</tbody>\n'
+    + '</table>\n';
+};
+
+Renderer.prototype.tablerow = function(content) {
+  return '<tr>\n' + content + '</tr>\n';
+};
+
+Renderer.prototype.tablecell = function(content, flags) {
+  var type = flags.header ? 'th' : 'td';
+  var tag = flags.align
+    ? '<' + type + ' style="text-align:' + flags.align + '">'
+    : '<' + type + '>';
+  return tag + content + '</' + type + '>\n';
+};
+
+// span level renderer
+Renderer.prototype.strong = function(text) {
+  return '<strong>' + text + '</strong>';
+};
+
+Renderer.prototype.em = function(text) {
+  return '<em>' + text + '</em>';
+};
+
+Renderer.prototype.codespan = function(text) {
+  return '<code>' + text + '</code>';
+};
+
+Renderer.prototype.br = function() {
+  return this.options.xhtml ? '<br/>' : '<br>';
+};
+
+Renderer.prototype.del = function(text) {
+  return '<del>' + text + '</del>';
+};
+
+Renderer.prototype.link = function(href, title, text) {
+  if (this.options.sanitize) {
+    try {
+      var prot = decodeURIComponent(unescape(href))
+        .replace(/[^\w:]/g, '')
+        .toLowerCase();
+    } catch (e) {
+      return '';
+    }
+    if (prot.indexOf('javascript:') === 0) {
+      return '';
+    }
+  }
+  var out = '<a href="' + href + '"';
+  if (title) {
+    out += ' title="' + title + '"';
+  }
+  out += '>' + text + '</a>';
+  return out;
+};
+
+Renderer.prototype.image = function(href, title, text) {
+  var out = '<img src="' + href + '" alt="' + text + '"';
+  if (title) {
+    out += ' title="' + title + '"';
+  }
+  out += this.options.xhtml ? '/>' : '>';
+  return out;
+};
+
+/**
+ * Parsing & Compiling
+ */
+
+function Parser(options) {
+  this.tokens = [];
+  this.token = null;
+  this.options = options || marked.defaults;
+  this.options.renderer = this.options.renderer || new Renderer;
+  this.renderer = this.options.renderer;
+  this.renderer.options = this.options;
+}
+
+/**
+ * Static Parse Method
+ */
+
+Parser.parse = function(src, options, renderer) {
+  var parser = new Parser(options, renderer);
+  return parser.parse(src);
+};
+
+/**
+ * Parse Loop
+ */
+
+Parser.prototype.parse = function(src) {
+  this.inline = new InlineLexer(src.links, this.options, this.renderer);
+  this.tokens = src.reverse();
+
+  var out = '';
+  while (this.next()) {
+    out += this.tok();
+  }
+
+  return out;
+};
+
+/**
+ * Next Token
+ */
+
+Parser.prototype.next = function() {
+  return this.token = this.tokens.pop();
+};
+
+/**
+ * Preview Next Token
+ */
+
+Parser.prototype.peek = function() {
+  return this.tokens[this.tokens.length - 1] || 0;
+};
+
+/**
+ * Parse Text Tokens
+ */
+
+Parser.prototype.parseText = function() {
+  var body = this.token.text;
+
+  while (this.peek().type === 'text') {
+    body += '\n' + this.next().text;
+  }
+
+  return this.inline.output(body);
+};
+
+/**
+ * Parse Current Token
+ */
+
+Parser.prototype.tok = function() {
+  switch (this.token.type) {
+    case 'space': {
+      return '';
+    }
+    case 'hr': {
+      return this.renderer.hr();
+    }
+    case 'heading': {
+      return this.renderer.heading(
+        this.inline.output(this.token.text),
+        this.token.depth,
+        this.token.text);
+    }
+    case 'code': {
+      return this.renderer.code(this.token.text,
+        this.token.lang,
+        this.token.escaped);
+    }
+    case 'table': {
+      var header = ''
+        , body = ''
+        , i
+        , row
+        , cell
+        , flags
+        , j;
+
+      // header
+      cell = '';
+      for (i = 0; i < this.token.header.length; i++) {
+        flags = { header: true, align: this.token.align[i] };
+        cell += this.renderer.tablecell(
+          this.inline.output(this.token.header[i]),
+          { header: true, align: this.token.align[i] }
+        );
+      }
+      header += this.renderer.tablerow(cell);
+
+      for (i = 0; i < this.token.cells.length; i++) {
+        row = this.token.cells[i];
+
+        cell = '';
+        for (j = 0; j < row.length; j++) {
+          cell += this.renderer.tablecell(
+            this.inline.output(row[j]),
+            { header: false, align: this.token.align[j] }
+          );
+        }
+
+        body += this.renderer.tablerow(cell);
+      }
+      return this.renderer.table(header, body);
+    }
+    case 'blockquote_start': {
+      var body = '';
+
+      while (this.next().type !== 'blockquote_end') {
+        body += this.tok();
+      }
+
+      return this.renderer.blockquote(body);
+    }
+    case 'list_start': {
+      var body = ''
+        , ordered = this.token.ordered;
+
+      while (this.next().type !== 'list_end') {
+        body += this.tok();
+      }
+
+      return this.renderer.list(body, ordered);
+    }
+    case 'list_item_start': {
+      var body = '';
+
+      while (this.next().type !== 'list_item_end') {
+        body += this.token.type === 'text'
+          ? this.parseText()
+          : this.tok();
+      }
+
+      return this.renderer.listitem(body);
+    }
+    case 'loose_item_start': {
+      var body = '';
+
+      while (this.next().type !== 'list_item_end') {
+        body += this.tok();
+      }
+
+      return this.renderer.listitem(body);
+    }
+    case 'html': {
+      var html = !this.token.pre && !this.options.pedantic
+        ? this.inline.output(this.token.text)
+        : this.token.text;
+      return this.renderer.html(html);
+    }
+    case 'paragraph': {
+      return this.renderer.paragraph(this.inline.output(this.token.text));
+    }
+    case 'text': {
+      return this.renderer.paragraph(this.parseText());
+    }
+  }
+};
+
+/**
+ * Helpers
+ */
+
+function escape(html, encode) {
+  return html
+    .replace(!encode ? /&(?!#?\w+;)/g : /&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function unescape(html) {
+  return html.replace(/&([#\w]+);/g, function(_, n) {
+    n = n.toLowerCase();
+    if (n === 'colon') return ':';
+    if (n.charAt(0) === '#') {
+      return n.charAt(1) === 'x'
+        ? String.fromCharCode(parseInt(n.substring(2), 16))
+        : String.fromCharCode(+n.substring(1));
+    }
+    return '';
+  });
+}
+
+function replace(regex, opt) {
+  regex = regex.source;
+  opt = opt || '';
+  return function self(name, val) {
+    if (!name) return new RegExp(regex, opt);
+    val = val.source || val;
+    val = val.replace(/(^|[^\[])\^/g, '$1');
+    regex = regex.replace(name, val);
+    return self;
+  };
+}
+
+function noop() {}
+noop.exec = noop;
+
+function merge(obj) {
+  var i = 1
+    , target
+    , key;
+
+  for (; i < arguments.length; i++) {
+    target = arguments[i];
+    for (key in target) {
+      if (Object.prototype.hasOwnProperty.call(target, key)) {
+        obj[key] = target[key];
+      }
+    }
+  }
+
+  return obj;
+}
+
+
+/**
+ * Marked
+ */
+
+function marked(src, opt, callback) {
+  if (callback || typeof opt === 'function') {
+    if (!callback) {
+      callback = opt;
+      opt = null;
+    }
+
+    opt = merge({}, marked.defaults, opt || {});
+
+    var highlight = opt.highlight
+      , tokens
+      , pending
+      , i = 0;
+
+    try {
+      tokens = Lexer.lex(src, opt)
+    } catch (e) {
+      return callback(e);
+    }
+
+    pending = tokens.length;
+
+    var done = function() {
+      var out, err;
+
+      try {
+        out = Parser.parse(tokens, opt);
+      } catch (e) {
+        err = e;
+      }
+
+      opt.highlight = highlight;
+
+      return err
+        ? callback(err)
+        : callback(null, out);
+    };
+
+    if (!highlight || highlight.length < 3) {
+      return done();
+    }
+
+    delete opt.highlight;
+
+    if (!pending) return done();
+
+    for (; i < tokens.length; i++) {
+      (function(token) {
+        if (token.type !== 'code') {
+          return --pending || done();
+        }
+        return highlight(token.text, token.lang, function(err, code) {
+          if (code == null || code === token.text) {
+            return --pending || done();
+          }
+          token.text = code;
+          token.escaped = true;
+          --pending || done();
+        });
+      })(tokens[i]);
+    }
+
+    return;
+  }
+  try {
+    if (opt) opt = merge({}, marked.defaults, opt);
+    return Parser.parse(Lexer.lex(src, opt), opt);
+  } catch (e) {
+    e.message += '\nPlease report this to https://github.com/chjj/marked.';
+    if ((opt || marked.defaults).silent) {
+      return '<p>An error occured:</p><pre>'
+        + escape(e.message + '', true)
+        + '</pre>';
+    }
+    throw e;
+  }
+}
+
+/**
+ * Options
+ */
+
+marked.options =
+marked.setOptions = function(opt) {
+  merge(marked.defaults, opt);
+  return marked;
+};
+
+marked.defaults = {
+  gfm: true,
+  tables: true,
+  breaks: false,
+  pedantic: false,
+  sanitize: false,
+  smartLists: false,
+  silent: false,
+  highlight: null,
+  langPrefix: 'lang-',
+  smartypants: false,
+  headerPrefix: '',
+  renderer: new Renderer,
+  xhtml: false
+};
+
+/**
+ * Expose
+ */
+
+marked.Parser = Parser;
+marked.parser = Parser.parse;
+
+marked.Renderer = Renderer;
+
+marked.Lexer = Lexer;
+marked.lexer = Lexer.lex;
+
+marked.InlineLexer = InlineLexer;
+marked.inlineLexer = InlineLexer.output;
+
+marked.parse = marked;
+
+if (typeof exports === 'object') {
+  module.exports = marked;
+} else if (typeof define === 'function' && define.amd) {
+  define(function() { return marked; });
+} else {
+  this.marked = marked;
+}
+
+}).call(function() {
+  return this || (typeof window !== 'undefined' ? window : global);
+}());
+
+}).call(this,typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
+},{}],29:[function(require,module,exports){
+(function (process){
+'use strict';
+
+var callable, byObserver;
+
+callable = function (fn) {
+	if (typeof fn !== 'function') throw new TypeError(fn + " is not a function");
+	return fn;
+};
+
+byObserver = function (Observer) {
+	var node = document.createTextNode(''), queue, i = 0;
+	new Observer(function () {
+		var data;
+		if (!queue) return;
+		data = queue;
+		queue = null;
+		if (typeof data === 'function') {
+			data();
+			return;
+		}
+		data.forEach(function (fn) { fn(); });
+	}).observe(node, { characterData: true });
+	return function (fn) {
+		callable(fn);
+		if (queue) {
+			if (typeof queue === 'function') queue = [queue, fn];
+			else queue.push(fn);
+			return;
+		}
+		queue = fn;
+		node.data = (i = ++i % 2);
+	};
+};
+
+module.exports = (function () {
+	// Node.js
+	if ((typeof process !== 'undefined') && process &&
+			(typeof process.nextTick === 'function')) {
+		return process.nextTick;
+	}
+
+	// MutationObserver=
+	if ((typeof document === 'object') && document) {
+		if (typeof MutationObserver === 'function') {
+			return byObserver(MutationObserver);
+		}
+		if (typeof WebKitMutationObserver === 'function') {
+			return byObserver(WebKitMutationObserver);
+		}
+	}
+
+	// W3C Draft
+	// http://dvcs.w3.org/hg/webperf/raw-file/tip/specs/setImmediate/Overview.html
+	if (typeof setImmediate === 'function') {
+		return function (cb) { setImmediate(callable(cb)); };
+	}
+
+	// Wide available standard
+	if (typeof setTimeout === 'function') {
+		return function (cb) { setTimeout(callable(cb), 0); };
+	}
+
+	return null;
+}());
+
+}).call(this,require("/home/raynos/projects/mercury/node_modules/browserify/node_modules/insert-module-globals/node_modules/process/browser.js"))
+},{"/home/raynos/projects/mercury/node_modules/browserify/node_modules/insert-module-globals/node_modules/process/browser.js":10}],30:[function(require,module,exports){
+module.exports = addListener
+
+function addListener(observArray, observ) {
+    var list = observArray._list
+
+    return observ(function (value) {
+        var valueList =  observArray().slice()
+        var index = list.indexOf(observ)
+
+        // This code path should never hit. If this happens
+        // there's a bug in the cleanup code
+        if (index === -1) {
+            var message = "observ-array: Unremoved observ listener"
+            var err = new Error(message)
+            err.list = list
+            err.index = index
+            err.observ = observ
+            throw err
+        }
+
+        valueList.splice(index, 1, value)
+        valueList._diff = [index, 1, value]
+
+        observArray.set(valueList)
+    })
+}
+
+},{}],31:[function(require,module,exports){
+var ObservArray = require("./index.js")
+
+var slice = Array.prototype.slice
+
+var ARRAY_METHODS = [
+    "concat", "slice", "every", "filter", "forEach", "indexOf",
+    "join", "lastIndexOf", "map", "reduce", "reduceRight",
+    "some", "toString", "toLocaleString"
+]
+
+var methods = ARRAY_METHODS.map(function (name) {
+    return [name, function () {
+        var res = this._list[name].apply(this._list, arguments)
+
+        if (res && Array.isArray(res)) {
+            res = ObservArray(res)
+        }
+
+        return res
+    }]
+})
+
+module.exports = ArrayMethods
+
+function ArrayMethods(obs) {
+    obs.push = observArrayPush
+    obs.pop = observArrayPop
+    obs.shift = observArrayShift
+    obs.unshift = observArrayUnshift
+    obs.reverse = notImplemented
+    obs.sort = notImplemented
+
+    methods.forEach(function (tuple) {
+        obs[tuple[0]] = tuple[1]
+    })
+    return obs
+}
+
+
+
+function observArrayPush() {
+    var args = slice.call(arguments)
+    args.unshift(this._list.length, 0)
+    this.splice.apply(this, args)
+
+    return this._list.length
+}
+function observArrayPop() {
+    return this.splice(this._list.length - 1, 1)[0]
+}
+function observArrayShift() {
+    return this.splice(0, 1)[0]
+}
+function observArrayUnshift() {
+    var args = slice.call(arguments)
+    args.unshift(0, 0)
+    this.splice.apply(this, args)
+
+    return this._list.length
+}
+
+
+function notImplemented() {
+    throw new Error("Pull request welcome")
+}
+
+},{"./index.js":32}],32:[function(require,module,exports){
+var Observ = require("observ")
+
+// circular dep between ArrayMethods & this file
+module.exports = ObservArray
+
+var splice = require("./splice.js")
+var ArrayMethods = require("./array-methods.js")
+var addListener = require("./add-listener.js")
+
+/*  ObservArray := (Array<T>) => Observ<
+        Array<T> & { _diff: Array }
+    > & {
+        splice: (index: Number, amount: Number, rest...: T) =>
+            Array<T>,
+        push: (values...: T) => Number,
+        filter: (lambda: Function, thisValue: Any) => Array<T>,
+        indexOf: (item: T, fromIndex: Number) => Number
+    }
+
+    Fix to make it more like ObservHash.
+
+    I.e. you write observables into it. 
+        reading methods take plain JS objects to read
+        and the value of the array is always an array of plain
+        objsect.
+
+        The observ array instance itself would have indexed 
+        properties that are the observables
+*/
+function ObservArray(initialList) {
+    // list is the internal mutable list observ instances that
+    // all methods on `obs` dispatch to.
+    var list = initialList
+    var initialState = []
+
+    // copy state out of initialList into initialState
+    list.forEach(function (observ, index) {
+        initialState[index] = typeof observ === "function" ?
+            observ() : observ
+    })
+
+    var obs = Observ(initialState)
+    obs.splice = splice
+
+    obs.get = get
+    obs.getLength = getLength
+    obs.put = put
+
+    // you better not mutate this list directly
+    // this is the list of observs instances
+    obs._list = list
+
+    var removeListeners = list.map(function (observ) {
+        return typeof observ === "function" ?
+            addListener(obs, observ) :
+            null
+    });
+    // this is a list of removal functions that must be called
+    // when observ instances are removed from `obs.list`
+    // not calling this means we do not GC our observ change
+    // listeners. Which causes rage bugs
+    obs._removeListeners = removeListeners
+
+    return ArrayMethods(obs, list)
+}
+
+function get(index) {
+    return this._list[index]
+}
+
+function put(index, value) {
+    this.splice(index, 1, value)
+}
+
+function getLength() {
+    return this._list.length
+}
+
+},{"./add-listener.js":30,"./array-methods.js":31,"./splice.js":33,"observ":35}],33:[function(require,module,exports){
+var slice = Array.prototype.slice
+
+var addListener = require("./add-listener.js")
+
+module.exports = splice
+
+// `obs.splice` is a mutable implementation of `splice()`
+// that mutates both `list` and the internal `valueList` that
+// is the current value of `obs` itself
+function splice(index, amount) {
+    var obs = this
+    var args = slice.call(arguments, 0)
+    var valueList = obs().slice()
+
+    // generate a list of args to mutate the internal
+    // list of only obs
+    var valueArgs = args.map(function (value, index) {
+        if (index === 0 || index === 1) {
+            return value
+        }
+
+        // must unpack observables that we are adding
+        return typeof value === "function" ? value() : value
+    })
+
+    valueList.splice.apply(valueList, valueArgs)
+    // we remove the observs that we remove
+    var removed = obs._list.splice.apply(obs._list, args)
+
+    var extraRemoveListeners = args.slice(2).map(function (observ) {
+        return typeof observ === "function" ?
+            addListener(obs, observ) :
+            null
+    })
+    extraRemoveListeners.unshift(args[0], args[1])
+    var removedListeners = obs._removeListeners.splice
+        .apply(obs._removeListeners, extraRemoveListeners)
+
+    removedListeners.forEach(function (removeObservListener) {
+        if (removeObservListener) {
+            removeObservListener()
+        }
+    })
+
+    valueList._diff = valueArgs
+
+    obs.set(valueList)
+    return removed
+}
+
+},{"./add-listener.js":30}],34:[function(require,module,exports){
+var Observ = require("observ")
+var extend = require("xtend")
+
+/* ObservHash := (Object<String, Observ<T>>) => 
+    Object<String, Observ<T>> &
+        Observ<Object<String, T> & {
+            _diff: Object<String, Any>
+        }>
+
+*/
+module.exports = ObservHash
+
+function ObservHash(hash) {
+    var keys = Object.keys(hash)
+
+    var initialState = {}
+
+    keys.forEach(function (key) {
+        var observ = hash[key]
+        initialState[key] = typeof observ === "function" ?
+            observ() : observ
+    })
+
+    var obs = Observ(initialState)
+    keys.forEach(function (key) {
+        var observ = hash[key]
+        obs[key] = observ
+
+        if (typeof observ === "function") {
+            observ(function (value) {
+                var state = extend(obs())
+                state[key] = value
+                var diff = {}
+                diff[key] = value && value._diff ?
+                    value._diff : value
+                state._diff = diff
+                obs.set(state)
+            })
+        }
+    })
+
+    return obs
+}
+
+},{"observ":35,"xtend":79}],35:[function(require,module,exports){
+module.exports = Observable
+
+function Observable(value) {
+    var listeners = []
+    value = value === undefined ? null : value
+
+    observable.set = function (v) {
+        value = v
+        listeners.forEach(function (f) {
+            f(v)
+        })
+    }
+
+    return observable
+
+    function observable(listener) {
+        if (!listener) {
+            return value
+        }
+
+        listeners.push(listener)
+
+        return function remove() {
+            listeners.splice(listeners.indexOf(listener), 1)
+        }
+    }
+}
+
+},{}],36:[function(require,module,exports){
+var global = typeof window === 'undefined' ? this : window
+
+var _raf =
+  global.requestAnimationFrame ||
+  global.webkitRequestAnimationFrame ||
+  global.mozRequestAnimationFrame ||
+  global.msRequestAnimationFrame ||
+  global.oRequestAnimationFrame ||
+  (global.setImmediate ? function(fn, el) {
+    setImmediate(fn)
+  } :
+  function(fn, el) {
+    setTimeout(fn, 0)
+  })
+
+module.exports = _raf
+
+},{}],37:[function(require,module,exports){
+var extend = require('xtend')
+var getFormData = require('form-data-set/element')
+
+module.exports = ChangeSinkHandler
+
+function ChangeSinkHandler(sink, data) {
+    if (!(this instanceof ChangeSinkHandler)) {
+        return new ChangeSinkHandler(sink, data)
+    }
+
+    this.sink = sink
+    this.data = data
+    this.type = 'change'
+    this.id = sink.id
+}
+
+ChangeSinkHandler.prototype.handleEvent = handleEvent
+
+function handleEvent(ev) {
+    var target = ev.target
+
+    var isValid =
+        (ev.type === 'change' && target.type === 'checkbox') ||
+        (ev.type === 'input' && target.type === 'text') ||
+        (ev.type === 'change' && target.type === 'range')
+
+    if (!isValid) {
+        return
+    }
+
+    var value = getFormData(ev.currentTarget)
+    var data = extend(value, this.data)
+
+    if (typeof this.sink === 'function') {
+        this.sink(data)
+    } else {
+        this.sink.write(data)
+    }
+}
+
+},{"form-data-set/element":41,"xtend":44}],38:[function(require,module,exports){
+module.exports = SinkEventHandler
+
+function SinkEventHandler(sink, data) {
+    if (!(this instanceof SinkEventHandler)) {
+        return new SinkEventHandler(sink, data)
+    }
+
+    this.sink = sink
+    this.id = sink.id
+    this.data = data
+}
+
+SinkEventHandler.prototype.handleEvent = handleEvent
+
+function handleEvent(ev) {
+    if (typeof this.sink === 'function') {
+        this.sink(this.data)
+    } else {
+        this.sink.write(this.data)
+    }
+}
+
+},{}],39:[function(require,module,exports){
+module.exports = KeyEventHandler
+
+function KeyEventHandler(fn, key, data) {
+    if (!(this instanceof KeyEventHandler)) {
+        return new KeyEventHandler(fn, key, data)
+    }
+
+    this.fn = fn
+    this.data = data
+    this.key = key
+}
+
+KeyEventHandler.prototype.handleEvent = handleEvent
+
+function handleEvent(ev) {
+    if (ev.keyCode === this.key) {
+        this.fn(this.data)
+    }
+}
+
+},{}],40:[function(require,module,exports){
+var slice = Array.prototype.slice
+
+module.exports = iterativelyWalk
+
+function iterativelyWalk(nodes, cb) {
+    if (!('length' in nodes)) {
+        nodes = [nodes]
+    }
+    
+    nodes = slice.call(nodes)
+
+    while(nodes.length) {
+        var node = nodes.shift(),
+            ret = cb(node)
+
+        if (ret) {
+            return ret
+        }
+
+        if (node.childNodes.length) {
+            nodes = slice.call(node.childNodes).concat(nodes)
+        }
+    }
+}
+
+},{}],41:[function(require,module,exports){
+var walk = require('dom-walk')
+
+var FormData = require('./index.js')
+
+module.exports = getFormData
+
+function buildElems(rootElem) {
+    var hash = {}
+
+    walk(rootElem, function (child) {
+        if (child.name) {
+            hash[child.name] = child
+        }
+    })
+
+
+    return hash
+}
+
+function getFormData(rootElem) {
+    var elements = buildElems(rootElem)
+
+    return FormData(elements)
+}
+
+},{"./index.js":42,"dom-walk":40}],42:[function(require,module,exports){
+/*jshint maxcomplexity: 10*/
+
+module.exports = FormData
+
+//TODO: Massive spec: http://www.whatwg.org/specs/web-apps/current-work/multipage/association-of-controls-and-forms.html#constructing-form-data-set
+function FormData(elements) {
+    return Object.keys(elements).reduce(function (acc, key) {
+        var elem = elements[key]
+
+        acc[key] = valueOfElement(elem)
+
+        return acc
+    }, {})
+}
+
+function valueOfElement(elem) {
+    if (typeof elem === "function") {
+        return elem()
+    } else if (containsRadio(elem)) {
+        var elems = toList(elem)
+        var checked = elems.filter(function (elem) {
+            return elem.checked
+        })[0] || null
+
+        return checked ? checked.value : null
+    } else if (Array.isArray(elem)) {
+        return elem.map(valueOfElement).filter(filterNull)
+    } else if (elem.tagName === undefined && elem.nodeType === undefined) {
+        return FormData(elem)
+    } else if (elem.tagName === "INPUT" && isChecked(elem)) {
+        if (elem.hasAttribute("value")) {
+            return elem.checked ? elem.value : null
+        } else {
+            return elem.checked
+        }
+    } else if (elem.tagName === "INPUT") {
+        return elem.value
+    } else if (elem.tagName === "TEXTAREA") {
+        return elem.value
+    } else if (elem.tagName === "SELECT") {
+        return elem.value
+    }
+}
+
+function isChecked(elem) {
+    return elem.type === "checkbox" || elem.type === "radio"
+}
+
+function containsRadio(value) {
+    if (value.tagName || value.nodeType) {
+        return false
+    }
+
+    var elems = toList(value)
+
+    return elems.some(function (elem) {
+        return elem.tagName === "INPUT" && elem.type === "radio"
+    })
+}
+
+function toList(value) {
+    if (Array.isArray(value)) {
+        return value
+    }
+
+    return Object.keys(value).map(prop, value)
+}
+
+function prop(x) {
+    return this[x]
+}
+
+function filterNull(val) {
+    return val !== null
+}
+
+},{}],43:[function(require,module,exports){
+module.exports = hasKeys
+
+function hasKeys(source) {
+    return source !== null &&
+        (typeof source === "object" ||
+        typeof source === "function")
+}
+
+},{}],44:[function(require,module,exports){
+var hasKeys = require("./has-keys")
+
+module.exports = extend
+
+function extend() {
+    var target = {}
+
+    for (var i = 0; i < arguments.length; i++) {
+        var source = arguments[i]
+
+        if (!hasKeys(source)) {
+            continue
+        }
+
+        for (var key in source) {
+            if (source.hasOwnProperty(key)) {
+                target[key] = source[key]
+            }
+        }
+    }
+
+    return target
+}
+
+},{"./has-keys":43}],45:[function(require,module,exports){
+var extend = require('xtend')
+var getFormData = require('form-data-set/element')
+
+var ENTER = 13
+
+module.exports = SubmitSinkHandler
+
+function SubmitSinkHandler(sink, data) {
+    if (!(this instanceof SubmitSinkHandler)) {
+        return new SubmitSinkHandler(sink, data)
+    }
+
+    this.sink = sink
+    this.data = data
+    this.id = sink.id
+    this.type = 'submit'
+}
+
+SubmitSinkHandler.prototype.handleEvent = handleEvent
+
+function handleEvent(ev) {
+    var target = ev.target
+
+    var isValid =
+        (ev.type === 'click' && target.tagName === 'BUTTON') ||
+        (
+            (target.type === 'text' || target.tagName === 'TEXTAREA') &&
+            (ev.keyCode === ENTER && !ev.shiftKey && ev.type === 'keydown')
+        )
+
+    if (!isValid) {
+        return
+    }
+
+    var value = getFormData(ev.currentTarget)
+    var data = extend(value, this.data)
+
+    if (typeof this.sink === 'function') {
+        this.sink(data)
+    } else {
+        this.sink.write(data)
+    }
+}
+
+},{"form-data-set/element":41,"xtend":44}],46:[function(require,module,exports){
+var extend = require('xtend')
+var getFormData = require('form-data-set/element')
+
+module.exports = ValueEventHandler
+
+function ValueEventHandler(sink, data) {
+    if (!(this instanceof ValueEventHandler)) {
+        return new ValueEventHandler(sink, data)
+    }
+
+    this.sink = sink
+    this.data = data
+    this.id = sink.id
+}
+
+ValueEventHandler.prototype.handleEvent = handleEvent
+
+function handleEvent(ev) {
+    var value = getFormData(ev.currentTarget)
+    var data = extend(value, this.data)
+
+    if (typeof this.sink === 'function') {
+        this.sink(data)
+    } else {
+        this.sink.write(data)
+    }
+}
+
+},{"form-data-set/element":41,"xtend":44}],47:[function(require,module,exports){
+var createElement = require("virtual-dom/create-element")
+var diff = require("virtual-dom/diff")
+var patch = require("virtual-dom/patch")
+
+var MESSAGE = "partial() cannot cache on values. " + 
+    "You must specify object arguments. partial("
+
+function copyOver(list, offset) {
+    var newList = []
+    for (var i = offset; i < list.length; i++) {
+        newList[i - offset] = list[i]
+    }
+    return newList
+}
+
+module.exports = partial
+
+function partial(fn) {
+    var args = copyOver(arguments, 1)
+    var firstArg = args[0]
+    var hasObjects = args.length === 0
+    var key
+
+    if (typeof firstArg === "object" && firstArg !== null) {
+        hasObjects = true
+        if ("key" in firstArg) {
+            key = firstArg.key
+        } else if ("id" in firstArg) {
+            key = firstArg.id
+        }
+    }
+
+    for (var i = 1; !hasObjects && i < args.length; i++) {
+        var arg = args[i];
+        if (typeof arg === "object" && arg !== null) {
+            hasObjects = true
+        }
+    }
+
+    if (!hasObjects) {
+        throw new Error(MESSAGE + args + ")")
+    }
+
+    return new Thunk(fn, args, key)
+}
+
+function Thunk(fn, args, key) {
+    this.fn = fn
+    this.args = args
+    this.vnode = null
+    this.key = key
+}
+
+Thunk.prototype.type = "immutable-thunk"
+Thunk.prototype.update = update
+Thunk.prototype.init = init
+
+function shouldUpdate(current, previous) {
+    if (current.fn !== previous.fn) {
+        return true
+    }
+
+    var cargs = current.args
+    var pargs = previous.args
+
+    // fast case for args is zero case.
+    if (cargs.length === 0 && pargs.length === 0) {
+        return false
+    }
+
+    if (cargs.length !== pargs.length) {
+        return true
+    }
+
+    var max = cargs.length > pargs.length ? cargs.length : pargs.length
+
+    for (var i = 0; i < max; i++) {
+        if (cargs[i] !== pargs[i]) {
+            return true
+        }
+    }
+
+    return false
+}
+
+function update(previous, domNode) {
+    if (!shouldUpdate(this, previous)) {
+        this.vnode = previous.vnode
+        return
+    }
+
+    if (!this.vnode) {
+        this.vnode = this.fn.apply(null, this.args)
+    }
+
+    var patches = diff(previous.vnode, this.vnode)
+    patch(domNode, patches)
+}
+
+function init() {
+    this.vnode = this.fn.apply(null, this.args)
+    return createElement(this.vnode)
+}
+
+},{"virtual-dom/create-element":48,"virtual-dom/diff":49,"virtual-dom/patch":52}],48:[function(require,module,exports){
+var createElement = require("./vdom/create-element")
+
+module.exports = createElement
+
+},{"./vdom/create-element":54}],49:[function(require,module,exports){
+var diff = require("./vtree/diff")
+
+module.exports = diff
+
+},{"./vtree/diff":59}],50:[function(require,module,exports){
+module.exports = isObject
+
+function isObject(x) {
+    return typeof x === "object" && x !== null
+}
+
+},{}],51:[function(require,module,exports){
+var nativeIsArray = Array.isArray
+var toString = Object.prototype.toString
+
+module.exports = nativeIsArray || isArray
+
+function isArray(obj) {
+    return toString.call(obj) === "[object Array]"
+}
+
+},{}],52:[function(require,module,exports){
+var patch = require("./vdom/patch")
+
+module.exports = patch
+
+},{"./vdom/patch":57}],53:[function(require,module,exports){
+var isObject = require("is-object")
+
+var isHook = require("../vtree/is-vhook")
+
+module.exports = applyProperties
+
+function applyProperties(node, props, previous) {
+    for (var propName in props) {
+        var propValue = props[propName]
+
+        if (isHook(propValue)) {
+            propValue.hook(node,
+                propName,
+                previous ? previous[propName] : undefined)
+        } else {
+            if (isObject(propValue)) {
+                if (!isObject(node[propName])) {
+                    node[propName] = {}
+                }
+
+                for (var k in propValue) {
+                    node[propName][k] = propValue[k]
+                }
+            } else if (propValue !== undefined) {
+                node[propName] = propValue
+            }
+        }
+    }
+}
+
+},{"../vtree/is-vhook":60,"is-object":50}],54:[function(require,module,exports){
+var document = require("global/document")
+
+var applyProperties = require("./apply-properties")
+
+var isVNode = require("../vtree/is-vnode")
+var isVText = require("../vtree/is-vtext")
+var isWidget = require("../vtree/is-widget")
+
+module.exports = createElement
+
+function createElement(vnode, opts) {
+    var doc = opts ? opts.document || document : document
+    var warn = opts ? opts.warn : null
+
+    if (isWidget(vnode)) {
+        return vnode.init()
+    } else if (isVText(vnode)) {
+        return doc.createTextNode(vnode.text)
+    } else if (!isVNode(vnode)) {
+        if (warn) {
+            warn("Item is not a valid virtual dom node", vnode)
+        }
+        return null
+    }
+
+    var node = (vnode.namespace === null) ?
+        doc.createElement(vnode.tagName) :
+        doc.createElementNS(vnode.namespace, vnode.tagName)
+
+    var props = vnode.properties
+    applyProperties(node, props)
+
+    var children = vnode.children
+
+    for (var i = 0; i < children.length; i++) {
+        var childNode = createElement(children[i], opts)
+        if (childNode) {
+            node.appendChild(childNode)
+        }
+    }
+
+    return node
+}
+
+},{"../vtree/is-vnode":61,"../vtree/is-vtext":62,"../vtree/is-widget":63,"./apply-properties":53,"global/document":26}],55:[function(require,module,exports){
+// Maps a virtual DOM tree onto a real DOM tree in an efficient manner.
+// We don't want to read all of the DOM nodes in the tree so we use
+// the in-order tree indexing to eliminate recursion down certain branches.
+// We only recurse into a DOM node if we know that it contains a child of
+// interest.
+
+var noChild = {}
+
+module.exports = domIndex
+
+function domIndex(rootNode, tree, indices, nodes) {
+    if (!indices || indices.length === 0) {
+        return {}
+    } else {
+        indices.sort(ascending)
+        return recurse(rootNode, tree, indices, nodes, 0)
+    }
+}
+
+function recurse(rootNode, tree, indices, nodes, rootIndex) {
+    nodes = nodes || {}
+
+
+    if (rootNode) {
+        if (indexInRange(indices, rootIndex, rootIndex)) {
+            nodes[rootIndex] = rootNode
+        }
+
+        var vChildren = tree.children
+
+        if (vChildren) {
+
+            var childNodes = rootNode.childNodes
+
+            for (var i = 0; i < tree.children.length; i++) {
+                rootIndex += 1
+
+                var vChild = vChildren[i] || noChild
+                var nextIndex = rootIndex + (vChild.count || 0)
+
+                // skip recursion down the tree if there are no nodes down here
+                if (indexInRange(indices, rootIndex, nextIndex)) {
+                    recurse(childNodes[i], vChild, indices, nodes, rootIndex)
+                }
+
+                rootIndex = nextIndex
+            }
+        }
+    }
+
+    return nodes
+}
+
+// Binary search for an index in the interval [left, right]
+function indexInRange(indices, left, right) {
+    if (indices.length === 0) {
+        return false
+    }
+
+    var minIndex = 0
+    var maxIndex = indices.length - 1
+    var currentIndex
+    var currentItem
+
+    while (minIndex <= maxIndex) {
+        currentIndex = ((maxIndex + minIndex) / 2) >> 0
+        currentItem = indices[currentIndex]
+
+        if (minIndex === maxIndex) {
+            return currentItem >= left && currentItem <= right
+        } else if (currentItem < left) {
+            minIndex = currentIndex + 1
+        } else  if (currentItem > right) {
+            maxIndex = currentIndex - 1
+        } else {
+            return true
+        }
+    }
+
+    return false;
+}
+
+function ascending(a, b) {
+    return a > b ? 1 : -1
+}
+
+},{}],56:[function(require,module,exports){
+var applyProperties = require("./apply-properties")
+
+var isWidget = require("../vtree/is-widget")
+var VPatch = require("../vtree/vpatch")
+
+var render = require("./create-element")
+var updateWidget = require("./update-widget")
+
+module.exports = applyPatch
+
+function applyPatch(vpatch, domNode, renderOptions) {
+    var type = vpatch.type
+    var vNode = vpatch.vNode
+    var patch = vpatch.patch
+
+    switch (type) {
+        case VPatch.REMOVE:
+            return removeNode(domNode, vNode)
+        case VPatch.INSERT:
+            return insertNode(domNode, patch, renderOptions)
+        case VPatch.VTEXT:
+            return stringPatch(domNode, vNode, patch, renderOptions)
+        case VPatch.WIDGET:
+            return widgetPatch(domNode, vNode, patch, renderOptions)
+        case VPatch.VNODE:
+            return vNodePatch(domNode, vNode, patch, renderOptions)
+        case VPatch.ORDER:
+            reorderChildren(domNode, patch)
+            return domNode
+        case VPatch.PROPS:
+            applyProperties(domNode, patch, vNode.propeties)
+            return domNode
+        default:
+            return domNode
+    }
+}
+
+function removeNode(domNode, vNode) {
+    var parentNode = domNode.parentNode
+
+    if (parentNode) {
+        parentNode.removeChild(domNode)
+    }
+
+    destroyWidget(domNode, vNode);
+
+    return null
+}
+
+function insertNode(parentNode, vNode, renderOptions) {
+    var newNode = render(vNode, renderOptions)
+
+    if (parentNode) {
+        parentNode.appendChild(newNode)
+    }
+
+    return parentNode
+}
+
+function stringPatch(domNode, leftVNode, vText, renderOptions) {
+    var newNode
+
+    if (domNode.nodeType === 3) {
+        domNode.replaceData(0, domNode.length, vText.text)
+        newNode = domNode
+    } else {
+        var parentNode = domNode.parentNode
+        newNode = render(vText, renderOptions)
+
+        if (parentNode) {
+            parentNode.replaceChild(newNode, domNode)
+        }
+    }
+
+    destroyWidget(domNode, leftVNode)
+
+    return newNode
+}
+
+function widgetPatch(domNode, leftVNode, widget, renderOptions) {
+    if (updateWidget(leftVNode, widget)) {
+        return widget.update(leftVNode, domNode) || domNode
+    }
+
+    var parentNode = domNode.parentNode
+    var newWidget = render(widget, renderOptions)
+
+    if (parentNode) {
+        parentNode.replaceChild(newWidget, domNode)
+    }
+
+    destroyWidget(domNode, leftVNode)
+
+    return newWidget
+}
+
+function vNodePatch(domNode, leftVNode, vNode, renderOptions) {
+    var parentNode = domNode.parentNode
+    var newNode = render(vNode, renderOptions)
+
+    if (parentNode) {
+        parentNode.replaceChild(newNode, domNode)
+    }
+
+    destroyWidget(domNode, leftVNode)
+
+    return newNode
+}
+
+function destroyWidget(domNode, w) {
+    if (typeof w.destroy === "function" && isWidget(w)) {
+        w.destroy(domNode)
+    }
+}
+
+function reorderChildren(domNode, bIndex) {
+    var children = []
+    var childNodes = domNode.childNodes
+    var len = childNodes.length
+    var i
+
+    for (i = 0; i < len; i++) {
+        children.push(domNode.childNodes[i])
+    }
+
+    for (i = 0; i < len; i++) {
+        var move = bIndex[i]
+        if (move !== undefined) {
+            var node = children[move]
+            domNode.removeChild(node)
+            domNode.insertBefore(node, childNodes[i])
+        }
+    }
+}
+
+},{"../vtree/is-widget":63,"../vtree/vpatch":66,"./apply-properties":53,"./create-element":54,"./update-widget":58}],57:[function(require,module,exports){
+var document = require("global/document")
+var isArray = require("x-is-array")
+
+var domIndex = require("./dom-index")
+var patchOp = require("./patch-op")
+
+module.exports = patch
+
+function patch(rootNode, patches) {
+    var indices = patchIndices(patches)
+
+    if (indices.length === 0) {
+        return rootNode
+    }
+
+    var index = domIndex(rootNode, patches.a, indices)
+    var ownerDocument = rootNode.ownerDocument
+    var renderOptions
+
+    if (ownerDocument !== document) {
+        renderOptions = {
+            document: ownerDocument
+        }
+    }
+
+    for (var i = 0; i < indices.length; i++) {
+        var nodeIndex = indices[i]
+        rootNode = applyPatch(rootNode,
+            index[nodeIndex],
+            patches[nodeIndex],
+            renderOptions)
+    }
+
+    return rootNode
+}
+
+function applyPatch(rootNode, domNode, patchList, renderOptions) {
+    if (!domNode) {
+        return rootNode
+    }
+
+    var newNode
+
+    if (isArray(patchList)) {
+        for (var i = 0; i < patchList.length; i++) {
+            newNode = patchOp(patchList[i], domNode, renderOptions)
+
+            if (domNode === rootNode) {
+                rootNode = newNode
+            }
+        }
+    } else {
+        newNode = patchOp(patchList, domNode, renderOptions)
+
+        if (domNode === rootNode) {
+            rootNode = newNode
+        }
+    }
+
+    return rootNode
+}
+
+function patchIndices(patches) {
+    var indices = []
+
+    for (var key in patches) {
+        if (key !== "a") {
+            indices.push(Number(key))
+        }
+    }
+
+    return indices
+}
+
+},{"./dom-index":55,"./patch-op":56,"global/document":26,"x-is-array":51}],58:[function(require,module,exports){
+var isWidget = require("../vtree/is-widget")
+
+module.exports = updateWidget
+
+function updateWidget(a, b) {
+    if (isWidget(a) && isWidget(b)) {
+        if ("type" in a && "type" in b) {
+            return a.type === b.type
+        } else {
+            return a.init === b.init
+        }
+    }
+
+    return false
+}
+
+},{"../vtree/is-widget":63}],59:[function(require,module,exports){
+var isArray = require("x-is-array")
+var isObject = require("is-object")
+
+var VPatch = require("./vpatch")
+var isVNode = require("./is-vnode")
+var isVText = require("./is-vtext")
+var isWidget = require("./is-widget")
+
+module.exports = diff
+
+function diff(a, b) {
+    var patch = { a: a }
+    walk(a, b, patch, 0)
+    return patch
+}
+
+function walk(a, b, patch, index) {
+    if (a === b) {
+        hooks(b, patch, index)
+        return
+    }
+
+    var apply = patch[index]
+
+    if (isWidget(b)) {
+        apply = appendPatch(apply, new VPatch(VPatch.WIDGET, a, b))
+
+        if (!isWidget(a)) {
+            destroyWidgets(a, patch, index)
+        }
+    } else if (isVText(b)) {
+        if (!isVText(a)) {
+            apply = appendPatch(apply, new VPatch(VPatch.VTEXT, a, b))
+            destroyWidgets(a, patch, index)
+        } else if (a.text !== b.text) {
+            apply = appendPatch(apply, new VPatch(VPatch.VTEXT, a, b))
+        }
+    } else if (isVNode(b)) {
+        if (isVNode(a)) {
+            if (a.tagName === b.tagName &&
+                a.namespace === b.namespace &&
+                a.key === b.key) {
+                var propsPatch = diffProps(a.properties, b.properties, b.hooks)
+                if (propsPatch) {
+                    apply = appendPatch(apply,
+                        new VPatch(VPatch.PROPS, a, propsPatch))
+                }
+            } else {
+                apply = appendPatch(apply, new VPatch(VPatch.VNODE, a, b))
+                destroyWidgets(a, patch, index)
+            }
+
+            apply = diffChildren(a, b, patch, apply, index)
+        } else {
+            apply = appendPatch(apply, new VPatch(VPatch.VNODE, a, b))
+            destroyWidgets(a, patch, index)
+        }
+    } else if (b == null) {
+        apply = appendPatch(apply, new VPatch(VPatch.REMOVE, a, b))
+        destroyWidgets(a, patch, index)
+    }
+
+    if (apply) {
+        patch[index] = apply
+    }
+}
+
+function diffProps(a, b, hooks) {
+    var diff
+
+    for (var aKey in a) {
+        if (!(aKey in b)) {
+            continue
+        }
+
+        var aValue = a[aKey]
+        var bValue = b[aKey]
+
+        if (hooks && aKey in hooks) {
+            diff = diff || {}
+            diff[aKey] = bValue
+        } else {
+            if (isObject(aValue) && isObject(bValue)) {
+                if (getPrototype(bValue) !== getPrototype(aValue)) {
+                    diff = diff || {}
+                    diff[aKey] = bValue
+                } else {
+                    var objectDiff = diffProps(aValue, bValue)
+                    if (objectDiff) {
+                        diff = diff || {}
+                        diff[aKey] = objectDiff
+                    }
+                }
+            } else if (aValue !== bValue && bValue !== undefined) {
+                diff = diff || {}
+                diff[aKey] = bValue
+            }
+        }
+    }
+
+    for (var bKey in b) {
+        if (!(bKey in a)) {
+            diff = diff || {}
+            diff[bKey] = b[bKey]
+        }
+    }
+
+    return diff
+}
+
+function getPrototype(value) {
+    if (Object.getPrototypeOf) {
+        return Object.getPrototypeOf(value)
+    } else if (value.__proto__) {
+        return value.__proto__
+    } else if (value.constructor) {
+        return value.constructor.prototype
+    }
+}
+
+function diffChildren(a, b, patch, apply, index) {
+    var aChildren = a.children
+    var bChildren = reorder(aChildren, b.children)
+
+    var aLen = aChildren.length
+    var bLen = bChildren.length
+    var len = aLen > bLen ? aLen : bLen
+
+    for (var i = 0; i < len; i++) {
+        var leftNode = aChildren[i]
+        var rightNode = bChildren[i]
+        index += 1
+
+        if (!leftNode) {
+            if (rightNode) {
+                // Excess nodes in b need to be added
+                apply = appendPatch(apply, new VPatch(VPatch.INSERT, null, rightNode))
+            }
+        } else if (!rightNode) {
+            if (leftNode) {
+                // Excess nodes in a need to be removed
+                patch[index] = new VPatch(VPatch.REMOVE, leftNode, null)
+                destroyWidgets(leftNode, patch, index)
+            }
+        } else {
+            walk(leftNode, rightNode, patch, index)
+        }
+
+        if (isVNode(leftNode) && leftNode.count) {
+            index += leftNode.count
+        }
+    }
+
+    if (bChildren.moves) {
+        // Reorder nodes last
+        apply = appendPatch(apply, new VPatch(VPatch.ORDER, a, bChildren.moves))
+    }
+
+    return apply
+}
+
+// Patch records for all destroyed widgets must be added because we need
+// a DOM node reference for the destroy function
+function destroyWidgets(vNode, patch, index) {
+    if (isWidget(vNode)) {
+        if (typeof vNode.destroy === "function") {
+            patch[index] = new VPatch(VPatch.REMOVE, vNode, null)
+        }
+    } else if (isVNode(vNode) && vNode.hasWidgets) {
+        var children = vNode.children
+        var len = children.length
+        for (var i = 0; i < len; i++) {
+            var child = children[i]
+            index += 1
+
+            destroyWidgets(child, patch, index)
+
+            if (isVNode(child) && child.count) {
+                index += child.count
+            }
+        }
+    }
+}
+
+// Execute hooks when two nodes are identical
+function hooks(vNode, patch, index) {
+    if (isVNode(vNode)) {
+        if (vNode.hooks) {
+            patch[index] = new VPatch(VPatch.PROPS, vNode.hooks, vNode.hooks)
+        }
+
+        if (vNode.descendantHooks) {
+            var children = vNode.children
+            var len = children.length
+            for (var i = 0; i < len; i++) {
+                var child = children[i]
+                index += 1
+
+                hooks(child, patch, index)
+
+                if (isVNode(child) && child.count) {
+                    index += child.count
+                }
+            }
+        }
+    }
+}
+
+// List diff, naive left to right reordering
+function reorder(aChildren, bChildren) {
+
+    var bKeys = keyIndex(bChildren)
+
+    if (!bKeys) {
+        return bChildren
+    }
+
+    var aKeys = keyIndex(aChildren)
+
+    if (!aKeys) {
+        return bChildren
+    }
+
+    var bMatch = {}, aMatch = {}
+
+    for (var key in bKeys) {
+        bMatch[bKeys[key]] = aKeys[key]
+    }
+
+    for (var key in aKeys) {
+        aMatch[aKeys[key]] = bKeys[key]
+    }
+
+    var aLen = aChildren.length
+    var bLen = bChildren.length
+    var len = aLen > bLen ? aLen : bLen
+    var shuffle = []
+    var freeIndex = 0
+    var i = 0
+    var moveIndex = 0
+    var moves = shuffle.moves = {}
+
+    while (freeIndex < len) {
+        var move = aMatch[i]
+        if (move !== undefined) {
+            shuffle[i] = bChildren[move]
+            moves[move] = moveIndex++
+        } else if (i in aMatch) {
+            shuffle[i] = undefined
+        } else {
+            while (bMatch[freeIndex] !== undefined) {
+                freeIndex++
+            }
+
+            if (freeIndex < len) {
+                moves[freeIndex] = moveIndex++
+                shuffle[i] = bChildren[freeIndex]
+                freeIndex++
+            }
+        }
+        i++
+    }
+
+    return shuffle
+}
+
+function keyIndex(children) {
+    var i, keys
+
+    for (i = 0; i < children.length; i++) {
+        var child = children[i]
+
+        if (child.key !== undefined) {
+            keys = keys || {}
+            keys[child.key] = i
+        }
+    }
+
+    return keys
+}
+
+function appendPatch(apply, patch) {
+    if (apply) {
+        if (isArray(apply)) {
+            apply.push(patch)
+        } else {
+            apply = [apply, patch]
+        }
+
+        return apply
+    } else {
+        return patch
+    }
+}
+
+},{"./is-vnode":61,"./is-vtext":62,"./is-widget":63,"./vpatch":66,"is-object":50,"x-is-array":51}],60:[function(require,module,exports){
+module.exports = isHook
+
+function isHook(hook) {
+    return hook && typeof hook.hook === "function" &&
+        !hook.hasOwnProperty("hook")
+}
+
+},{}],61:[function(require,module,exports){
+var version = require("./version")
+
+module.exports = isVirtualNode
+
+function isVirtualNode(x) {
+    if (!x) {
+        return false;
+    }
+
+    return x.type === "VirtualNode" && x.version === version
+}
+
+},{"./version":64}],62:[function(require,module,exports){
+var version = require("./version")
+
+module.exports = isVirtualText
+
+function isVirtualText(x) {
+    if (!x) {
+        return false;
+    }
+
+    return x.type === "VirtualText" && x.version === version
+}
+
+},{"./version":64}],63:[function(require,module,exports){
+module.exports = isWidget
+
+function isWidget(w) {
+    return w && typeof w.init === "function" && typeof w.update === "function"
+}
+
+},{}],64:[function(require,module,exports){
+module.exports = "1"
+
+},{}],65:[function(require,module,exports){
+var version = require("./version")
+var isVNode = require("./is-vnode")
+var isWidget = require("./is-widget")
+var isVHook = require("./is-vhook")
+
+module.exports = VirtualNode
+
+var noProperties = {}
+var noChildren = []
+
+function VirtualNode(tagName, properties, children, key, namespace) {
+    this.tagName = tagName
+    this.properties = properties || noProperties
+    this.children = children || noChildren
+    this.key = key != null ? String(key) : undefined
+    this.namespace = (typeof namespace === "string") ? namespace : null
+
+    var count = (children && children.length) || 0
+    var descendants = 0
+    var hasWidgets = false
+    var descendantHooks = false
+    var hooks
+
+    for (var propName in properties) {
+        if (properties.hasOwnProperty(propName)) {
+            var property = properties[propName]
+            if (isVHook(property)) {
+                if (!hooks) {
+                    hooks = {}
+                }
+
+                hooks[propName] = property
+            }
+        }
+    }
+
+    for (var i = 0; i < count; i++) {
+        var child = children[i]
+        if (isVNode(child)) {
+            descendants += child.count || 0
+
+            if (!hasWidgets && child.hasWidgets) {
+                hasWidgets = true
+            }
+
+            if (!descendantHooks && (child.hooks || child.descendantHooks)) {
+                descendantHooks = true
+            }
+        } else if (!hasWidgets && isWidget(child)) {
+            if (typeof child.destroy === "function") {
+                hasWidgets = true
+            }
+        }
+    }
+
+    this.count = count + descendants
+    this.hasWidgets = hasWidgets
+    this.hooks = hooks
+    this.descendantHooks = descendantHooks
+}
+
+VirtualNode.prototype.version = version
+VirtualNode.prototype.type = "VirtualNode"
+
+},{"./is-vhook":60,"./is-vnode":61,"./is-widget":63,"./version":64}],66:[function(require,module,exports){
+var version = require("./version")
+
+VirtualPatch.NONE = 0
+VirtualPatch.VTEXT = 1
+VirtualPatch.VNODE = 2
+VirtualPatch.WIDGET = 3
+VirtualPatch.PROPS = 4
+VirtualPatch.ORDER = 5
+VirtualPatch.INSERT = 6
+VirtualPatch.REMOVE = 7
+
+module.exports = VirtualPatch
+
+function VirtualPatch(type, vNode, patch) {
+    this.type = Number(type)
+    this.vNode = vNode
+    this.patch = patch
+}
+
+VirtualPatch.prototype.version = version.split(".")
+VirtualPatch.prototype.type = "VirtualPatch"
+
+},{"./version":64}],67:[function(require,module,exports){
+var version = require("./version")
+
+module.exports = VirtualText
+
+function VirtualText(text) {
+    this.text = String(text)
+}
+
+VirtualText.prototype.version = version
+VirtualText.prototype.type = "VirtualText"
+
+},{"./version":64}],68:[function(require,module,exports){
+module.exports = AttributeHook;
+
+function AttributeHook(value) {
+    if (!(this instanceof AttributeHook)) {
+        return new AttributeHook(value);
+    }
+
+    this.value = value;
+}
+
+AttributeHook.prototype.hook = function (node, prop, prev) {
+    if (prev && prev.value === this.value) {
+        return;
+    }
+
+    node.setAttributeNS(null, prop, this.value)
+}
+
+},{}],69:[function(require,module,exports){
+var DataSet = require("data-set")
+
+module.exports = DataSetHook;
+
+function DataSetHook(value) {
+    if (!(this instanceof DataSetHook)) {
+        return new DataSetHook(value);
+    }
+
+    this.value = value;
+}
+
+DataSetHook.prototype.hook = function (node, propertyName) {
+    var ds = DataSet(node)
+    var propName = propertyName.substr(5)
+
+    ds[propName] = this.value;
+};
+
+},{"data-set":73}],70:[function(require,module,exports){
+module.exports = SoftSetHook;
+
+function SoftSetHook(value) {
+    if (!(this instanceof SoftSetHook)) {
+        return new SoftSetHook(value);
+    }
+
+    this.value = value;
+}
+
+SoftSetHook.prototype.hook = function (node, propertyName) {
+    if (node[propertyName] !== this.value) {
+        node[propertyName] = this.value;
+    }
+};
+
+},{}],71:[function(require,module,exports){
+var VNode = require("virtual-dom/vtree/vnode.js")
+var VText = require("virtual-dom/vtree/vtext.js")
+var isVNode = require("virtual-dom/vtree/is-vnode")
+var isVText = require("virtual-dom/vtree/is-vtext")
+var isWidget = require("virtual-dom/vtree/is-widget")
+var isHook = require("virtual-dom/vtree/is-vhook")
+
+var parseTag = require("./parse-tag.js")
+var softSetHook = require("./hooks/soft-set-hook.js")
+var dataSetHook = require("./hooks/data-set-hook.js")
+
+module.exports = h
+
+function h(tagName, properties, children) {
+    var childNodes = []
+    var tag, props, key, namespace
+
+    if (!children && isChildren(properties)) {
+        children = properties
+        props = {}
+    }
+
+    props = props || properties || {}
+    tag = parseTag(tagName, props)
+
+    if (children) {
+        if (Array.isArray(children)) {
+            for (var i = 0; i < children.length; i++) {
+                addChild(children[i], childNodes)
+            }
+        } else {
+            addChild(children, childNodes)
+        }
+    }
+
+    // support keys
+    if ("key" in props) {
+        key = props.key
+        props.key = undefined
+    }
+
+    // support namespace
+    if ("namespace" in props) {
+        namespace = props.namespace
+        props.namespace = undefined
+    }
+
+    // fix cursor bug
+    if (tag === "input" &&
+        "value" in props &&
+        props.value !== undefined &&
+        !isHook(props.value)
+    ) {
+        props.value = softSetHook(props.value)
+    }
+
+    // add data-set support
+    var keys = Object.keys(props)
+    for (var j = 0; j < keys.length; j++) {
+        var propName = keys[j]
+        var value = props[propName]
+        if (!isHook(value) && propName.substr(0, 5) === "data-") {
+            props[propName] = dataSetHook(value)
+        }
+    }
+
+    return new VNode(tag, props, childNodes, key, namespace)
+}
+
+function addChild(c, childNodes) {
+    if (typeof c === "string") {
+        childNodes.push(new VText(c))
+    } else if (isChild(c)) {
+        childNodes.push(c)
+    }
+}
+
+function isChild(x) {
+    return isVNode(x) || isVText(x) || isWidget(x)
+}
+
+function isChildren(x) {
+    return typeof x === "string" || Array.isArray(x)
+}
+
+},{"./hooks/data-set-hook.js":69,"./hooks/soft-set-hook.js":70,"./parse-tag.js":77,"virtual-dom/vtree/is-vhook":60,"virtual-dom/vtree/is-vnode":61,"virtual-dom/vtree/is-vtext":62,"virtual-dom/vtree/is-widget":63,"virtual-dom/vtree/vnode.js":65,"virtual-dom/vtree/vtext.js":67}],72:[function(require,module,exports){
+module.exports=require(14)
+},{}],73:[function(require,module,exports){
+module.exports=require(15)
+},{"./create-hash.js":72,"individual":74,"weakmap-shim/create-store":75}],74:[function(require,module,exports){
+module.exports=require(19)
+},{}],75:[function(require,module,exports){
+module.exports=require(16)
+},{"./hidden-store.js":76}],76:[function(require,module,exports){
+module.exports=require(17)
+},{}],77:[function(require,module,exports){
+var classIdSplit = /([\.#]?[a-zA-Z0-9_:-]+)/
+var notClassId = /^\.|#/
+
+module.exports = parseTag
+
+function parseTag(tag, props) {
+    if (!tag) {
+        return "div"
+    }
+
+    var noId = !("id" in props)
+
+    var tagParts = tag.split(classIdSplit)
+    var tagName = null
+
+    if (notClassId.test(tagParts[1])) {
+        tagName = "div"
+    }
+
+    var classes, part, type, i
+    for (i = 0; i < tagParts.length; i++) {
+        part = tagParts[i]
+
+        if (!part) {
+            continue
+        }
+
+        type = part.charAt(0)
+
+        if (!tagName) {
+            tagName = part
+        } else if (type === ".") {
+            classes = classes || []
+            classes.push(part.substring(1, part.length))
+        } else if (type === "#" && noId) {
+            props.id = part.substring(1, part.length)
+        }
+    }
+
+    if (classes) {
+        if (props.className) {
+            classes.push(props.className)
+        }
+
+        props.className = classes.join(" ")
+    }
+
+    return tagName ? tagName.toLowerCase() : "div"
+}
+
+},{}],78:[function(require,module,exports){
+var attributeHook = require("./hooks/attribute-hook.js")
+var h = require("./index.js")
+
+var BLACKLISTED_KEYS = {
+    "style": true,
+    "namespace": true,
+    "key": true
+}
+var SVG_NAMESPACE = "http://www.w3.org/2000/svg"
+
+module.exports = svg
+
+function svg(tagName, properties, children) {
+    if (!children && isChildren(properties)) {
+        children = properties
+        properties = {}
+    }
+
+    properties = properties || {}
+
+    // set namespace for svg
+    properties.namespace = SVG_NAMESPACE
+
+    // for each key, if attribute & string, bool or number then
+    // convert it into a setAttribute hook
+    for (var key in properties) {
+        if (!properties.hasOwnProperty(key)) {
+            continue
+        }
+
+        if (BLACKLISTED_KEYS[key]) {
+            continue
+        }
+
+        var value = properties[key]
+        if (typeof value !== "string" &&
+            typeof value !== "number" &&
+            typeof value !== "boolean"
+        ) {
+            continue
+        }
+
+        properties[key] = attributeHook(value)
+    }
+
+    return h(tagName, properties, children)
+}
+
+function isChildren(x) {
+    return typeof x === "string" || Array.isArray(x)
+}
+
+},{"./hooks/attribute-hook.js":68,"./index.js":71}],79:[function(require,module,exports){
+module.exports = extend
+
+function extend() {
+    var target = {}
+
+    for (var i = 0; i < arguments.length; i++) {
+        var source = arguments[i]
+
+        for (var key in source) {
+            if (source.hasOwnProperty(key)) {
+                target[key] = source[key]
+            }
+        }
+    }
+
+    return target
+}
+
+},{}]},{},[2])</script>
+</html>
